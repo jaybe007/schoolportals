@@ -143,6 +143,7 @@ class PortalController
         $scores = [];
         $summary = null;
         $invoices = [];
+        $attStats = ['total' => 0, 'present_count' => 0, 'absent_count' => 0];
         if ($selectedWard) {
             $scores = Database::query(
                 "SELECT es.*, sub.name AS subject_name 
@@ -157,6 +158,16 @@ class PortalController
                 "SELECT * FROM student_term_summaries WHERE student_id = ? AND session_id = ? AND term_id = ?",
                 [$selectedWardId, $session['id'] ?? 0, $term['id'] ?? 0]
             );
+
+            $attStats = Database::fetch(
+                "SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count,
+                    SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent_count
+                 FROM attendance 
+                 WHERE student_id = ? AND (session_id = ? OR ? = 0) AND (term_id = ? OR ? = 0)",
+                [$selectedWardId, $session['id'] ?? 0, $session['id'] ?? 0, $term['id'] ?? 0, $term['id'] ?? 0]
+            ) ?: ['total' => 0, 'present_count' => 0, 'absent_count' => 0];
 
             $invoices = Database::query("SELECT * FROM fee_invoices WHERE student_id = ? ORDER BY id DESC", [$selectedWardId]);
         }
@@ -241,6 +252,7 @@ class PortalController
             'term' => $term,
             'scores' => $scores,
             'summary' => $summary,
+            'attStats' => $attStats,
             'invoices' => $invoices,
             'portalInvoices' => $portalInvoices,
             'portalNotices' => $portalNotices,
