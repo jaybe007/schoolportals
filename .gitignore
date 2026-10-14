@@ -1,0 +1,38 @@
+# Composer & Dependencies
+/vendor/
+composer.phar
+
+# Environment Configuration & Secrets
+.env
+.env.backup
+.env.local
+.env.production
+.env.staging
+
+# Logs & Temporary Files
+*.log
+storage/logs/*
+!storage/logs/.gitkeep
+tmp/
+temp/
+scratch/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# IDE & Editor Configurations
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+.buildpath
+
+# Testing & Coverage
+.phpunit.result.cache
+coverage/

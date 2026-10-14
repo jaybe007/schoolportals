@@ -1,0 +1,53 @@
+# ==============================================================================
+# EduSphere SaaS - Maximum Security Apache Configuration
+# ==============================================================================
+
+# 1. Disable Directory Indexing / Browsing
+Options -Indexes -MultiViews
+
+# 2. Block direct access to sensitive system directories
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /schoolportals/
+
+    # Block access to hidden files/folders (starting with dot) like .env, .git
+    RewriteRule (^|/)\.(?!well-known) - [F,L]
+
+    # Block direct access to core internal backend folders
+    RewriteRule ^(app|database|views|vendor|tests)(\/|$) - [F,L]
+
+    # Allow direct access to public assets
+    RewriteCond %{REQUEST_URI} ^/schoolportals/public/ [NC]
+    RewriteRule ^ - [L]
+
+    # Redirect all other non-existent requests to front controller
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# 3. Block access to sensitive and dangerous file extensions
+<FilesMatch "(^#.*#|\.(bak|config|dist|fla|inc|ini|log|psd|sh|sql|sw[op]|env|json|lock|phar|md|yml|yaml|git.*))$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 4. Block HTTP TRACE and TRACK (prevents XST attacks)
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK) [NC]
+    RewriteRule .* - [F]
+</IfModule>
+
+# 5. Security & Isolation Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)"
+</IfModule>

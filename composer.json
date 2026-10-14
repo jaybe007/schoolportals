@@ -1,0 +1,19 @@
+{
+    "name": "edusphere/saas-platform",
+    "description": "EduSphere - Premium Multi-Tenant School Management SaaS Platform",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2.0",
+        "vlucas/phpdotenv": "^5.7",
+        "dompdf/dompdf": "^3.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "EduSphere\\": "app/"
+        },
+        "files": [
+            "app/Core/Helpers.php"
+        ]
+    }
+}

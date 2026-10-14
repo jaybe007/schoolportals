@@ -1,0 +1,43 @@
+# ==============================================================================
+# EduSphere SaaS - Fail2ban Hardened Jails Configuration
+# Location on VPS: /etc/fail2ban/jail.local
+# ==============================================================================
+
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+banaction = ufw
+ignoreip = 127.0.0.1/8 ::1
+
+# 1. SSH Brute Force Protection
+[sshd]
+enabled = true
+port    = ssh
+filter  = sshd
+logpath = %(sshd_log)s
+maxretry = 3
+bantime  = 24h
+
+# 2. Nginx HTTP Auth Brute Force
+[nginx-http-auth]
+enabled = true
+port    = http,https
+logpath = %(nginx_error_log)s
+
+# 3. Nginx 404 / Malicious Scanner Probing (Blocks bots probing for .env, wp-login, etc.)
+[nginx-botsearch]
+enabled  = true
+port     = http,https
+logpath  = %(nginx_error_log)s
+maxretry = 2
+bantime  = 48h
+
+# 4. Nginx Rate Limiting Violations Jail
+[nginx-limit-req]
+enabled  = true
+port     = http,https
+logpath  = %(nginx_error_log)s
+filter   = nginx-limit-req
+maxretry = 5
+bantime  = 2h
