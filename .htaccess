@@ -1,14 +1,17 @@
 # ==============================================================================
-# EduSphere SaaS - Maximum Security Apache Configuration
+# EduSphere SaaS - Maximum Security Apache & LiteSpeed Configuration
 # ==============================================================================
 
-# 1. Disable Directory Indexing / Browsing
-Options -Indexes -MultiViews
+DirectoryIndex index.php index.html
 
-# 2. Block direct access to sensitive system directories
+# 1. Disable Directory Indexing safely
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# 2. Block direct access to sensitive system directories & route to index.php
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /schoolportals/
 
     # Block access to hidden files/folders (starting with dot) like .env, .git
     RewriteRule (^|/)\.(?!well-known) - [F,L]
@@ -16,13 +19,12 @@ Options -Indexes -MultiViews
     # Block direct access to core internal backend folders
     RewriteRule ^(app|database|views|vendor|tests)(\/|$) - [F,L]
 
-    # Allow direct access to public assets
-    RewriteCond %{REQUEST_URI} ^/schoolportals/public/ [NC]
+    # Allow direct access to existing files and directories
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # Redirect all other non-existent requests to front controller
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
+    # Redirect all other requests to front controller
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
 
