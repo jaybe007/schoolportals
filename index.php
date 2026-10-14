@@ -86,13 +86,13 @@ $router->group(['prefix' => '/superadmin', 'middleware' => ['auth', 'role:super_
 });
 
 // Tenant School Management Portal Routes
+$router->get('/school/students/{id}/report-card', [TenantController::class, 'downloadReportCard'], ['auth']);
 $router->group(['prefix' => '/school', 'middleware' => ['auth', 'role:school_admin,principal,registrar,teacher,bursar,super_admin']], function(Router $r) {
     $r->get('/', [TenantController::class, 'dashboard']);
     $r->get('/admissions', [TenantController::class, 'admissions']);
     $r->post('/admissions/{id}/process', [TenantController::class, 'processAdmission']);
     $r->get('/students', [TenantController::class, 'students']);
     $r->post('/students/create', [TenantController::class, 'createStudent']);
-    $r->get('/students/{id}/report-card', [TenantController::class, 'downloadReportCard']);
     $r->get('/academics', [TenantController::class, 'academics']);
     $r->post('/academics/create-session', [TenantController::class, 'createSession']);
     $r->post('/academics/create-arm', [TenantController::class, 'createClassArm']);
@@ -145,9 +145,11 @@ $router->group(['prefix' => '/sales', 'middleware' => ['auth', 'role:sales_rep,s
 // Student & Parent Portals
 $router->group(['prefix' => '/portal', 'middleware' => ['auth']], function(Router $r) {
     $r->get('/student', [PortalController::class, 'studentDashboard'], ['role:student,super_admin']);
+    $r->get('/student/report-card', [PortalController::class, 'downloadStudentReportCard'], ['role:student,super_admin']);
     $r->post('/student/pay-fee', [PortalController::class, 'payStudentFee'], ['role:student,super_admin']);
     $r->post('/student/pay-portal-fee', [PortalController::class, 'payStudentPortalFee'], ['role:student,super_admin']);
     $r->get('/parent', [PortalController::class, 'parentDashboard'], ['role:parent,super_admin']);
+    $r->get('/parent/wards/{id}/report-card', [PortalController::class, 'downloadWardReportCard'], ['role:parent,super_admin']);
     $r->post('/parent/pay-portal-fee', [PortalController::class, 'payPortalInvoice'], ['role:parent,super_admin']);
     $r->post('/parent/dispute-portal-fee', [PortalController::class, 'disputePortalInvoice'], ['role:parent,super_admin']);
     $r->get('/parent/messages', [PortalController::class, 'parentMessages'], ['role:parent,super_admin']);

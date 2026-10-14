@@ -10,7 +10,7 @@ use EduSphere\Core\Database;
 
 class ReportCardPdfService
 {
-    public static function generateReportCard(int $schoolId, int $studentId, int $sessionId, int $termId): Dompdf
+    public static function generateReportCard(int $schoolId, int $studentId, int $sessionId = 0, int $termId = 0): Dompdf
     {
         $school = Database::fetch("SELECT * FROM schools WHERE id = ?", [$schoolId]);
         $student = Database::fetch(
@@ -21,8 +21,31 @@ class ReportCardPdfService
              WHERE s.id = ? AND s.school_id = ?",
             [$studentId, $schoolId]
         );
-        $session = Database::fetch("SELECT * FROM academic_sessions WHERE id = ?", [$sessionId]);
-        $term = Database::fetch("SELECT * FROM academic_terms WHERE id = ?", [$termId]);
+
+        if (!$student) {
+            throw new \RuntimeException("Student record not found or does not belong to school.");
+        }
+
+        // 1. Resolve Session if not provided
+        if ($sessionId <= 0) {
+            $sess = Database::fetch("SELECT id FROM academic_sessions WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId])
+                ?: Database::fetch("SELECT session_id AS id FROM exam_scores WHERE student_id = ? ORDER BY id DESC LIMIT 1", [$studentId])
+                ?: Database::fetch("SELECT id FROM academic_sessions WHERE school_id = ? ORDER BY id DESC LIMIT 1", [$schoolId]);
+            $sessionId = (int)($sess['id'] ?? 0);
+        }
+
+        // 2. Resolve Term if not provided
+        if ($termId <= 0) {
+            $t = Database::fetch("SELECT id FROM academic_terms WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId])
+                ?: Database::fetch("SELECT term_id AS id FROM exam_scores WHERE student_id = ? AND session_id = ? ORDER BY id DESC LIMIT 1", [$studentId, $sessionId])
+                ?: Database::fetch("SELECT id FROM academic_terms WHERE school_id = ? ORDER BY id DESC LIMIT 1", [$schoolId]);
+            $termId = (int)($t['id'] ?? 0);
+        }
+
+        $session = Database::fetch("SELECT * FROM academic_sessions WHERE id = ?", [$sessionId])
+            ?: ['name' => 'Current Academic Session'];
+        $term = Database::fetch("SELECT * FROM academic_terms WHERE id = ?", [$termId])
+            ?: ['name' => 'Current Term'];
 
         $summary = Database::fetch(
             "SELECT * FROM student_term_summaries WHERE school_id = ? AND session_id = ? AND term_id = ? AND student_id = ?",
@@ -33,10 +56,28 @@ class ReportCardPdfService
             "SELECT es.*, sub.name AS subject_name, sub.code AS subject_code
              FROM exam_scores es
              JOIN subjects sub ON sub.id = es.subject_id
-             WHERE es.school_id = ? AND es.session_id = ? AND es.term_id = ? AND es.student_id = ? AND es.status IN ('approved', 'published', 'locked')
+             WHERE es.student_id = ? AND (es.session_id = ? OR ? = 0) AND (es.term_id = ? OR ? = 0)
              ORDER BY sub.name ASC",
-            [$schoolId, $sessionId, $termId, $studentId]
+            [$studentId, $sessionId, $sessionId, $termId, $termId]
         );
+
+        // Auto-compute summary if summary row is not yet generated in DB
+        if (!$summary && !empty($scores)) {
+            $total = 0.0;
+            foreach ($scores as $sc) {
+                $total += (float)$sc['total_score'];
+            }
+            $count = count($scores);
+            $avg = $count > 0 ? round($total / $count, 1) : 0.0;
+            $summary = [
+                'total_score' => $total,
+                'average_score' => $avg,
+                'position' => '—',
+                'total_students' => '—',
+                'teacher_remark' => ($avg >= 70 ? 'Outstanding academic excellence and discipline.' : ($avg >= 50 ? 'Good effort this term. Strive for higher marks.' : 'Requires closer attention and focused remedial study.')),
+                'principal_remark' => ($avg >= 70 ? 'Commendable performance. Promoted with distinction.' : ($avg >= 50 ? 'Satisfactory progress. Approved.' : 'Needs significant improvement next term.')),
+            ];
+        }
 
         $attendanceStats = Database::fetch(
             "SELECT 
@@ -44,9 +85,9 @@ class ReportCardPdfService
                 SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present_days,
                 SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absent_days
              FROM attendance 
-             WHERE school_id = ? AND session_id = ? AND term_id = ? AND student_id = ?",
-            [$schoolId, $sessionId, $termId, $studentId]
-        );
+             WHERE student_id = ? AND (session_id = ? OR ? = 0) AND (term_id = ? OR ? = 0)",
+            [$studentId, $sessionId, $sessionId, $termId, $termId]
+        ) ?: ['total_days' => 0, 'present_days' => 0, 'absent_days' => 0];
 
         $html = self::buildHtmlTemplate($school, $student, $session, $term, $summary, $scores, $attendanceStats);
 

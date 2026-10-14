@@ -7,11 +7,11 @@
             Session: <strong><?= e($session['name'] ?? '2025/2026') ?></strong>
         </p>
     </div>
-    <?php if ($summary): ?>
+    <?php if ($summary || !empty($scores)): ?>
         <div>
-            <a href="<?= url('school/students/' . $student['id'] . '/report-card') ?>" class="btn btn-primary" target="_blank">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <span>Download Official Terminal Report Card</span>
+            <a href="<?= url('portal/student/report-card') ?>" class="btn btn-primary" target="_blank" title="Download & Print Official PDF Terminal Report Card">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                <span>Download & Print Report Card (PDF)</span>
             </a>
         </div>
     <?php endif; ?>
@@ -96,8 +96,17 @@
 
 <!-- Published Examination Results -->
 <div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header">
-        <div class="card-title">Published Terminal Examination Scores</div>
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+            <div class="card-title">Published Terminal Examination Scores</div>
+            <div class="card-subtitle">Continuous assessments & examination records</div>
+        </div>
+        <?php if ($summary || !empty($scores)): ?>
+            <a href="<?= url('portal/student/report-card') ?>" class="btn btn-primary btn-sm" target="_blank" title="Download & Print Official PDF Report Card">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                <span>Print Report Card</span>
+            </a>
+        <?php endif; ?>
     </div>
     <div class="table-responsive">
         <table class="table">

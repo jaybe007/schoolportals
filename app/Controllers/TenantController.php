@@ -551,35 +551,57 @@ class TenantController
 
     public function downloadReportCard(Request $request, string $studentId): void
     {
-        $schoolId = $this->getSchoolId();
         $stuId = (int)$studentId;
+        $role = Auth::role();
+        $userId = Auth::id();
 
-        // Strict cross-tenant check: verify student belongs to this school
-        $student = Database::fetch("SELECT * FROM students WHERE id = ? AND school_id = ?", [$stuId, $schoolId]);
-        if (!$student) {
-            AuditLogger::log('unauthorized_cross_tenant_report_card_attempt', 'student', $stuId, [
-                'attempted_student_id' => $stuId,
-                'user_school_id' => $schoolId,
+        if ($role === 'student') {
+            $student = Database::fetch("SELECT * FROM students WHERE user_id = ? AND id = ?", [$userId, $stuId]);
+            if (!$student) {
+                http_response_code(403);
+                die("Access Denied: You can only view your own report card.");
+            }
+            $schoolId = (int)$student['school_id'];
+        } elseif ($role === 'parent') {
+            $parent = Database::fetch("SELECT id FROM parents WHERE user_id = ?", [$userId]);
+            if (!$parent) {
+                http_response_code(403);
+                die("Access Denied: Parent record not found.");
+            }
+            $student = Database::fetch("SELECT * FROM students WHERE id = ? AND parent_id = ?", [$stuId, $parent['id']]);
+            if (!$student) {
+                http_response_code(403);
+                die("Access Denied: You cannot view report cards of a student who is not your registered ward.");
+            }
+            $schoolId = (int)$student['school_id'];
+        } else {
+            $schoolId = $this->getSchoolId();
+            // Strict cross-tenant check: verify student belongs to this school
+            $student = Database::fetch("SELECT * FROM students WHERE id = ? AND school_id = ?", [$stuId, $schoolId]);
+            if (!$student) {
+                AuditLogger::log('unauthorized_cross_tenant_report_card_attempt', 'student', $stuId, [
+                    'attempted_student_id' => $stuId,
+                    'user_school_id' => $schoolId,
+                ]);
+                http_response_code(403);
+                View::render('errors.403', ['message' => 'Access Denied: You cannot access or download report cards from another school tenant.'], 'auth');
+                exit;
+            }
+        }
+
+        $sessionId = (int)($request->get('session_id') ?? 0);
+        $termId = (int)($request->get('term_id') ?? 0);
+
+        try {
+            $dompdf = ReportCardPdfService::generateReportCard($schoolId, $stuId, $sessionId, $termId);
+            $dompdf->stream("ReportCard_{$stuId}.pdf", [
+                'Attachment' => false // Preview in browser with native print/download controls
             ]);
-            http_response_code(403);
-            View::render('errors.403', ['message' => 'Access Denied: You cannot access or download report cards from another school tenant.'], 'auth');
             exit;
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            die("Report generation error: " . htmlspecialchars($e->getMessage()));
         }
-
-        $session = Database::fetch("SELECT id FROM academic_sessions WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId]);
-        $term = Database::fetch("SELECT id FROM academic_terms WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId]);
-
-        if (!$session || !$term) {
-            http_response_code(400);
-            die("Current academic session and term not configured.");
-        }
-
-        $dompdf = ReportCardPdfService::generateReportCard($schoolId, $stuId, (int)$session['id'], (int)$term['id']);
-        
-        $dompdf->stream("ReportCard_{$stuId}_{$session['id']}_{$term['id']}.pdf", [
-            'Attachment' => false // Preview in browser
-        ]);
-        exit;
     }
 
     public function downloadReceipt(Request $request, string $id): void

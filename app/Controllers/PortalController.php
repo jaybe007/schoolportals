@@ -11,6 +11,7 @@ use EduSphere\Core\View;
 use EduSphere\Core\Auth;
 use EduSphere\Core\TenantContext;
 use EduSphere\Services\FinancialPdfService;
+use EduSphere\Services\ReportCardPdfService;
 
 class PortalController
 {
@@ -207,13 +208,28 @@ class PortalController
             [$parent['id'], $userId]
         )['c'] ?? 0);
 
-        $recentMessages = Database::query(
-            "SELECT m.*, u.name as sender_name 
-             FROM parent_school_messages m 
-             JOIN users u ON u.id = m.sender_id 
-             WHERE m.parent_id = ? AND m.parent_message_id IS NULL 
-             ORDER BY m.updated_at DESC LIMIT 3",
-            [$parent['id']]
+        $staffMembers = Database::query(
+            "SELECT id, name, role FROM users 
+             WHERE school_id = ? AND role IN ('school_admin', 'principal', 'teacher', 'bursar') 
+             ORDER BY CASE role WHEN 'principal' THEN 1 WHEN 'school_admin' THEN 2 WHEN 'teacher' THEN 3 ELSE 4 END, name ASC",
+            [$parent['school_id']]
+        );
+
+        $threads = Database::query(
+            "SELECT m.*, s.first_name as student_first, s.last_name as student_last, u.name as sender_name,
+                    (SELECT COUNT(*) FROM parent_school_messages r WHERE r.parent_message_id = m.id) as reply_count,
+                    (CASE WHEN EXISTS (
+                        SELECT 1 FROM parent_school_messages ch 
+                        WHERE (ch.id = m.id OR ch.parent_message_id = m.id) 
+                          AND ch.recipient_id = ? 
+                          AND ch.is_read = 0
+                    ) THEN 1 ELSE 0 END) as is_unread
+             FROM parent_school_messages m
+             LEFT JOIN students s ON s.id = m.student_id
+             JOIN users u ON u.id = m.sender_id
+             WHERE m.parent_id = ? AND m.parent_message_id IS NULL
+             ORDER BY m.updated_at DESC LIMIT 10",
+            [$userId, $parent['id']]
         );
 
         View::render('portal.parent', [
@@ -231,7 +247,8 @@ class PortalController
             'generalNotices' => $generalNotices,
             'portalPayments' => $portalPayments,
             'unreadMessagesCount' => $unreadMessagesCount,
-            'recentMessages' => $recentMessages,
+            'staffMembers' => $staffMembers,
+            'threads' => $threads,
         ], 'portal');
     }
 
@@ -423,23 +440,29 @@ class PortalController
             [$parent['id'], $schoolId]
         );
 
-        // Mark incoming messages as read
-        Database::execute(
-            "UPDATE parent_school_messages SET is_read = 1, read_at = NOW() 
-             WHERE parent_id = ? AND recipient_id = ? AND is_read = 0",
-            [$parent['id'], $userId]
+        $staffMembers = Database::query(
+            "SELECT id, name, role FROM users 
+             WHERE school_id = ? AND role IN ('school_admin', 'principal', 'teacher', 'bursar') 
+             ORDER BY CASE role WHEN 'principal' THEN 1 WHEN 'school_admin' THEN 2 WHEN 'teacher' THEN 3 ELSE 4 END, name ASC",
+            [$schoolId]
         );
 
         // Fetch parent threads (parent_message_id IS NULL)
         $threads = Database::query(
             "SELECT m.*, s.first_name as student_first, s.last_name as student_last, u.name as sender_name,
-                    (SELECT COUNT(*) FROM parent_school_messages r WHERE r.parent_message_id = m.id) as reply_count
+                    (SELECT COUNT(*) FROM parent_school_messages r WHERE r.parent_message_id = m.id) as reply_count,
+                    (CASE WHEN EXISTS (
+                        SELECT 1 FROM parent_school_messages ch 
+                        WHERE (ch.id = m.id OR ch.parent_message_id = m.id) 
+                          AND ch.recipient_id = ? 
+                          AND ch.is_read = 0
+                    ) THEN 1 ELSE 0 END) as is_unread
              FROM parent_school_messages m
              LEFT JOIN students s ON s.id = m.student_id
              JOIN users u ON u.id = m.sender_id
              WHERE m.parent_id = ? AND m.parent_message_id IS NULL
              ORDER BY m.updated_at DESC",
-            [$parent['id']]
+            [$userId, $parent['id']]
         );
 
         $activeThreadId = (int)($request->get('thread_id') ?? ($threads[0]['id'] ?? 0));
@@ -447,6 +470,13 @@ class PortalController
         $replies = [];
 
         if ($activeThreadId > 0) {
+            // Mark this specific active thread as read
+            Database::execute(
+                "UPDATE parent_school_messages SET is_read = 1, read_at = NOW() 
+                 WHERE (id = ? OR parent_message_id = ?) AND recipient_id = ? AND is_read = 0",
+                [$activeThreadId, $activeThreadId, $userId]
+            );
+
             $activeThread = Database::fetch(
                 "SELECT m.*, s.first_name as student_first, s.last_name as student_last, u.name as sender_name
                  FROM parent_school_messages m
@@ -468,6 +498,11 @@ class PortalController
             }
         }
 
+        $unreadCount = (int)(Database::fetch(
+            "SELECT COUNT(*) AS c FROM parent_school_messages WHERE parent_id = ? AND recipient_id = ? AND is_read = 0",
+            [$parent['id'], $userId]
+        )['c'] ?? 0);
+
         View::render('portal.parent_messages', [
             'title' => 'School-Parent Direct Communication Desk',
             'parent' => $parent,
@@ -475,6 +510,8 @@ class PortalController
             'threads' => $threads,
             'activeThread' => $activeThread,
             'replies' => $replies,
+            'staffMembers' => $staffMembers,
+            'unreadCount' => $unreadCount,
         ], 'portal');
     }
 
@@ -489,6 +526,7 @@ class PortalController
 
         $schoolId = (int)$parent['school_id'];
         $studentId = (int)$request->post('student_id', 0) ?: null;
+        $recipientId = (int)$request->post('recipient_id', 0);
         $subject = trim((string)$request->post('subject', ''));
         $message = trim((string)$request->post('message', ''));
 
@@ -496,12 +534,14 @@ class PortalController
             Response::redirect('/portal/parent/messages', 'Subject and Message cannot be empty.', 'danger');
         }
 
-        // Find school admin user ID to receive the message
-        $adminUser = Database::fetch(
-            "SELECT id FROM users WHERE school_id = ? AND role IN ('school_admin', 'super_admin') ORDER BY id ASC LIMIT 1",
-            [$schoolId]
-        );
-        $recipientId = (int)($adminUser['id'] ?? 1);
+        // Find fallback school admin user ID if no specific recipient selected
+        if ($recipientId <= 0) {
+            $adminUser = Database::fetch(
+                "SELECT id FROM users WHERE school_id = ? AND role IN ('school_admin', 'super_admin') ORDER BY id ASC LIMIT 1",
+                [$schoolId]
+            );
+            $recipientId = (int)($adminUser['id'] ?? 1);
+        }
 
         Database::execute(
             "INSERT INTO parent_school_messages
@@ -515,10 +555,11 @@ class PortalController
         \EduSphere\Core\AuditLogger::log('parent_message_sent', 'parent_school_messages', $threadId, [
             'parent_id' => $parent['id'],
             'student_id' => $studentId,
+            'recipient_id' => $recipientId,
             'subject' => $subject,
         ]);
 
-        Response::redirect('/portal/parent/messages?thread_id=' . $threadId, 'Your message has been delivered to school administration.', 'success');
+        Response::redirect('/portal/parent/messages?thread_id=' . $threadId, 'Your message has been delivered to the school!', 'success');
     }
 
     public function replyParentMessage(Request $request, string $id): void
@@ -553,6 +594,57 @@ class PortalController
         Database::execute("UPDATE parent_school_messages SET updated_at = NOW() WHERE id = ?", [$threadId]);
 
         Response::redirect('/portal/parent/messages?thread_id=' . $threadId, 'Reply sent successfully.', 'success');
+    }
+
+    public function downloadStudentReportCard(Request $request): void
+    {
+        $userId = Auth::id();
+        $student = Database::fetch("SELECT * FROM students WHERE user_id = ?", [$userId]);
+        if (!$student) {
+            http_response_code(403);
+            die("Access Forbidden: Student profile not found.");
+        }
+
+        $schoolId = (int)$student['school_id'];
+        $sessionId = (int)($request->get('session_id') ?? 0);
+        $termId = (int)($request->get('term_id') ?? 0);
+
+        $this->streamReportCard($schoolId, (int)$student['id'], $sessionId, $termId);
+    }
+
+    public function downloadWardReportCard(Request $request, string $studentId): void
+    {
+        $stuId = (int)$studentId;
+        if (!$this->canAccessStudent($stuId)) {
+            http_response_code(403);
+            die("Access Forbidden: You do not have permission to access this student's report card.");
+        }
+
+        $student = Database::fetch("SELECT * FROM students WHERE id = ?", [$stuId]);
+        if (!$student) {
+            http_response_code(404);
+            die("Student record not found.");
+        }
+
+        $schoolId = (int)$student['school_id'];
+        $sessionId = (int)($request->get('session_id') ?? 0);
+        $termId = (int)($request->get('term_id') ?? 0);
+
+        $this->streamReportCard($schoolId, $stuId, $sessionId, $termId);
+    }
+
+    private function streamReportCard(int $schoolId, int $studentId, int $sessionId = 0, int $termId = 0): void
+    {
+        try {
+            $dompdf = ReportCardPdfService::generateReportCard($schoolId, $studentId, $sessionId, $termId);
+            $dompdf->stream("Official_ReportCard_Student_{$studentId}.pdf", [
+                'Attachment' => false
+            ]);
+            exit;
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            die("Report generation error: " . htmlspecialchars($e->getMessage()));
+        }
     }
 
     private function canAccessStudent(int $studentId): bool
