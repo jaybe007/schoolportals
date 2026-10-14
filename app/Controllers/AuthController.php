@@ -69,17 +69,17 @@ class AuthController
 
     public function quickDemoLogin(Request $request): void
     {
-        $isProduction = ($_ENV['APP_ENV'] ?? 'development') === 'production';
-        $allowDemo = (($_ENV['ALLOW_DEMO_LOGIN'] ?? 'true') === 'true') && !$isProduction;
+        $allowDemo = (strtolower((string)($_ENV['ALLOW_DEMO_LOGIN'] ?? 'false')) === 'true') 
+            || (($_ENV['APP_ENV'] ?? 'development') === 'development');
 
-        // Strictly disallow backdoor demo login in production environments
+        // Strictly disallow backdoor demo login if disabled
         if (!$allowDemo) {
             AuditLogger::log('unauthorized_production_demo_login_attempt', 'auth', null, [
                 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'Unknown',
                 'query' => $_SERVER['QUERY_STRING'] ?? '',
             ]);
             http_response_code(403);
-            View::render('errors.403', ['message' => 'Demo quick-login is strictly disabled in production mode.'], 'auth');
+            View::render('errors.403', ['message' => 'Demo quick-login is disabled. Set ALLOW_DEMO_LOGIN=true in your .env file to enable 1-click test logins.'], 'auth');
             exit;
         }
 
