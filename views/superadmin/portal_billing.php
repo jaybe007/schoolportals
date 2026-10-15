@@ -259,7 +259,7 @@
                         <?php endif; ?>
                     </td>
                     <td>
-                        <a href="<?= url('school/term-portal-fee') ?>" class="btn btn-outline btn-sm">Inspect Portal</a>
+                        <a href="<?= url('school/term-portal-fee?school=' . $sch['slug']) ?>" class="btn btn-outline btn-sm" target="_blank">Inspect Portal</a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -709,435 +709,421 @@
 </div>
 
 <!-- Modal 1: Comprehensive Portal Pricing Form -->
-<div class="modal" id="createPricingModal">
-    <div class="modal-dialog" style="max-width: 680px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h3 class="modal-title">Configure Portal Pricing Policy</h3>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Authorizes term portal fees, school overrides, and scholarship/tax policies</p>
-                </div>
-                <button class="modal-close" onclick="closeModal('createPricingModal')">&times;</button>
+<div id="createPricingModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">Configure Portal Pricing Policy</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Authorizes term portal fees, school overrides, and scholarship/tax policies</p>
             </div>
-            <form method="POST" action="<?= url('superadmin/portal-billing/pricing') ?>">
-                <?= csrf_field() ?>
-                <div class="modal-body">
-                    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Policy Identifier Code *</label>
-                            <input type="text" name="policy_code" class="form-control" placeholder="e.g. TERM-FEE-2026-DEFAULT" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Currency *</label>
-                            <select name="currency" class="form-control">
-                                <option value="NGN" selected>NGN (Nigerian Naira - ₦)</option>
-                                <option value="USD">USD (US Dollar - $)</option>
-                                <option value="GBP">GBP (British Pound - £)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Fee per Student per Term *</label>
-                            <input type="number" step="50" name="fee_per_student" class="form-control" value="3000" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Commercial Payer Model *</label>
-                            <select name="fee_payer" class="form-control">
-                                <option value="parent">Billed to Parents / Guardians</option>
-                                <option value="school_sponsored">School-Sponsored Fee (Zero Parent Charge)</option>
-                            </select>
-                        </div>
-                    </div>
-
+            <button class="modal-close" onclick="closeModal('createPricingModal')">&times;</button>
+        </div>
+        <form method="POST" action="<?= url('superadmin/portal-billing/pricing') ?>">
+            <?= csrf_field() ?>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem;">
                     <div class="form-group">
-                        <label class="form-label">Target School Scope</label>
-                        <select name="school_id" class="form-control">
-                            <option value="">Global Default Policy (All Participating Schools)</option>
-                            <?php foreach ($schools as $s): ?>
-                            <option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?> (School-Specific Negotiated Rate)</option>
+                        <label class="form-label">Policy Identifier Code *</label>
+                        <input type="text" name="policy_code" class="form-control" placeholder="e.g. TERM-FEE-2026-DEFAULT" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Currency *</label>
+                        <select name="currency" class="form-control">
+                            <option value="NGN" selected>NGN (Nigerian Naira - ₦)</option>
+                            <option value="USD">USD (US Dollar - $)</option>
+                            <option value="GBP">GBP (British Pound - £)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Fee per Student per Term *</label>
+                        <input type="number" step="50" name="fee_per_student" class="form-control" value="3000" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Commercial Payer Model *</label>
+                        <select name="fee_payer" class="form-control">
+                            <option value="parent">Billed to Parents / Guardians</option>
+                            <option value="school_sponsored">School-Sponsored Fee (Zero Parent Charge)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Target School Scope</label>
+                    <select name="school_id" class="form-control">
+                        <option value="">Global Default Policy (All Participating Schools)</option>
+                        <?php foreach ($schools as $s): ?>
+                        <option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?> (School-Specific Negotiated Rate)</option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Select a specific school to configure customized or discounted institutional arrangements.</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Effective Academic Session</label>
+                        <select name="session_id" class="form-control">
+                            <option value="">All / Current Session</option>
+                            <?php foreach ($sessions as $ses): ?>
+                            <option value="<?= (int)$ses['id'] ?>"><?= e($ses['name']) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Select a specific school to configure customized or discounted institutional arrangements.</div>
                     </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Effective Academic Session</label>
-                            <select name="session_id" class="form-control">
-                                <option value="">All / Current Session</option>
-                                <?php foreach ($sessions as $ses): ?>
-                                <option value="<?= (int)$ses['id'] ?>"><?= e($ses['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Effective Academic Term</label>
-                            <select name="term_id" class="form-control">
-                                <option value="">All Terms in Session</option>
-                                <?php foreach ($terms as $t): ?>
-                                <option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Eligible School Types</label>
-                            <select name="eligible_school_types" class="form-control">
-                                <option value="all">All School Levels</option>
-                                <option value="nursery_primary">Nursery & Primary Only</option>
-                                <option value="secondary">Secondary Only (JSS/SSS)</option>
-                                <option value="comprehensive">Comprehensive K-12</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Eligible Student Categories</label>
-                            <select name="eligible_student_categories" class="form-control">
-                                <option value="all">All Active Enrolled Students</option>
-                                <option value="day_only">Day Students Only</option>
-                                <option value="boarder_only">Boarding Pupils Only</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Minimum Fee Floor (₦)</label>
-                            <input type="number" step="50" name="min_fee" class="form-control" placeholder="Optional minimum threshold">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Maximum Fee Cap (₦)</label>
-                            <input type="number" step="50" name="max_fee" class="form-control" placeholder="Optional maximum cap">
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Tax Calculation Model</label>
-                            <select name="tax_treatment" class="form-control">
-                                <option value="tax_inclusive">Tax Inclusive (Included in Portal Fee)</option>
-                                <option value="tax_exclusive">Tax Exclusive (Calculated Separately)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Applicable Tax Rate (%)</label>
-                            <input type="number" step="0.1" name="tax_rate" class="form-control" value="0.00" placeholder="e.g. 7.5 for VAT">
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Effective Date *</label>
-                            <input type="date" name="effective_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Expiry Date</label>
-                            <input type="date" name="expiry_date" class="form-control">
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Discount & Scholarship Rules</label>
-                            <input type="text" name="discount_policy" class="form-control" placeholder="e.g. Sibling discount 25%, Staff ward 50%">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Approved Exemptions & Waivers</label>
-                            <input type="text" name="exemptions_policy" class="form-control" placeholder="e.g. Indigent scholarship waiver">
-                        </div>
-                    </div>
-
                     <div class="form-group">
-                        <label class="form-label">Initial Policy Status *</label>
-                        <select name="status" class="form-control">
-                            <option value="active" selected>Active (Immediately Effective for Term Agreements)</option>
-                            <option value="approved">Approved (Awaiting Launch Date)</option>
-                            <option value="pending_approval">Pending Approval</option>
-                            <option value="draft">Draft</option>
+                        <label class="form-label">Effective Academic Term</label>
+                        <select name="term_id" class="form-control">
+                            <option value="">All Terms in Session</option>
+                            <?php foreach ($terms as $t): ?>
+                            <option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
+                </div>
 
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
-                        <label class="form-label">Notes, Justification & Audit Trail</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Governing board approval notes or special contract terms."></textarea>
+                        <label class="form-label">Eligible School Types</label>
+                        <select name="eligible_school_types" class="form-control">
+                            <option value="all">All School Levels</option>
+                            <option value="nursery_primary">Nursery & Primary Only</option>
+                            <option value="secondary">Secondary Only (JSS/SSS)</option>
+                            <option value="comprehensive">Comprehensive K-12</option>
+                        </select>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Eligible Student Categories</label>
+                        <select name="eligible_student_categories" class="form-control">
+                            <option value="all">All Active Enrolled Students</option>
+                            <option value="day_only">Day Students Only</option>
+                            <option value="boarder_only">Boarding Pupils Only</option>
+                        </select>
+                    </div>
+                </div>
 
-                    <!-- Explicit Authorization Notice -->
-                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.75rem 1rem; margin-top: 1rem;">
-                        <label style="display: flex; gap: 0.5rem; align-items: flex-start; cursor: pointer; margin: 0; font-size: 0.85rem; color: #1e3a8a;">
-                            <input type="checkbox" name="confirm_authorization" value="1" required style="margin-top: 0.2rem;">
-                            <span>
-                                <strong>Explicit Confirmation & Authorization Required:</strong> I authorize the publication of this portal fee pricing policy. I acknowledge that changing default pricing does not alter historical invoices or previously agreed term charges.
-                            </span>
-                        </label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Minimum Fee Floor (₦)</label>
+                        <input type="number" step="50" name="min_fee" class="form-control" placeholder="Optional minimum threshold">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Maximum Fee Cap (₦)</label>
+                        <input type="number" step="50" name="max_fee" class="form-control" placeholder="Optional maximum cap">
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createPricingModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Confirm & Publish Pricing Policy</button>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Tax Calculation Model</label>
+                        <select name="tax_treatment" class="form-control">
+                            <option value="tax_inclusive">Tax Inclusive (Included in Portal Fee)</option>
+                            <option value="tax_exclusive">Tax Exclusive (Calculated Separately)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Applicable Tax Rate (%)</label>
+                        <input type="number" step="0.1" name="tax_rate" class="form-control" value="0.00" placeholder="e.g. 7.5 for VAT">
+                    </div>
                 </div>
-            </form>
-        </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Effective Date *</label>
+                        <input type="date" name="effective_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Expiry Date</label>
+                        <input type="date" name="expiry_date" class="form-control">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Discount & Scholarship Rules</label>
+                        <input type="text" name="discount_policy" class="form-control" placeholder="e.g. Sibling discount 25%, Staff ward 50%">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Approved Exemptions & Waivers</label>
+                        <input type="text" name="exemptions_policy" class="form-control" placeholder="e.g. Indigent scholarship waiver">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Initial Policy Status *</label>
+                    <select name="status" class="form-control">
+                        <option value="active" selected>Active (Immediately Effective for Term Agreements)</option>
+                        <option value="approved">Approved (Awaiting Launch Date)</option>
+                        <option value="pending_approval">Pending Approval</option>
+                        <option value="draft">Draft</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes, Justification & Audit Trail</label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="Governing board approval notes or special contract terms."></textarea>
+                </div>
+
+                <!-- Explicit Authorization Notice -->
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.75rem 1rem; margin-top: 1rem;">
+                    <label style="display: flex; gap: 0.5rem; align-items: flex-start; cursor: pointer; margin: 0; font-size: 0.85rem; color: #1e3a8a;">
+                        <input type="checkbox" name="confirm_authorization" value="1" required style="margin-top: 0.2rem;">
+                        <span>
+                            <strong>Explicit Confirmation & Authorization Required:</strong> I authorize the publication of this portal fee pricing policy. I acknowledge that changing default pricing does not alter historical invoices or previously agreed term charges.
+                        </span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('createPricingModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Confirm & Publish Pricing Policy</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- Modal 2: Approve School Payout -->
-<div class="modal" id="payoutModal">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Approve School Incentive Disbursement</h3>
-                <button class="modal-close" onclick="closeModal('payoutModal')">&times;</button>
-            </div>
-            <form method="POST" id="payoutForm" action="">
-                <?= csrf_field() ?>
-                <div class="modal-body">
-                    <p style="color: #475569; margin-bottom: 1rem;">
-                        You are approving an incentive disbursement of <strong id="payoutAmountDisplay" style="color: #059669;"></strong> to <strong id="payoutSchoolDisplay"></strong>.
-                    </p>
-                    <div class="form-group">
-                        <label class="form-label">Bank Disbursement Reference *</label>
-                        <input type="text" name="disbursement_reference" class="form-control" value="DISB-NIP-<?= date('Ymd') ?>-<?= rand(1000, 9999) ?>" required>
-                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">NIP session reference or wire confirmation code.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('payoutModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Authorize & Record Payout</button>
-                </div>
-            </form>
+<div id="payoutModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Approve School Incentive Disbursement</h3>
+            <button class="modal-close" onclick="closeModal('payoutModal')">&times;</button>
         </div>
+        <form method="POST" id="payoutForm" action="">
+            <?= csrf_field() ?>
+            <div class="modal-body">
+                <p style="color: #475569; margin-bottom: 1rem;">
+                    You are approving an incentive disbursement of <strong id="payoutAmountDisplay" style="color: #059669;"></strong> to <strong id="payoutSchoolDisplay"></strong>.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Bank Disbursement Reference *</label>
+                    <input type="text" name="disbursement_reference" class="form-control" value="DISB-NIP-<?= date('Ymd') ?>-<?= rand(1000, 9999) ?>" required>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">NIP session reference or wire confirmation code.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('payoutModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Authorize & Record Payout</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- Modal 3: Configure Revenue Sharing Policy -->
-<div class="modal" id="createRevenueModal">
-    <div class="modal-dialog" style="max-width: 650px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Configure Revenue Sharing Policy</h3>
-                <button class="modal-close" onclick="closeModal('createRevenueModal')">&times;</button>
-            </div>
-            <form method="POST" action="<?= url('superadmin/portal-billing/revenue-policy') ?>">
-                <?= csrf_field() ?>
-                <div class="modal-body">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Policy Code *</label>
-                            <input type="text" name="policy_code" class="form-control" placeholder="e.g. REV-GLOBAL-2026 or REV-APEX-CUSTOM" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Scope / School Arrangement *</label>
-                            <select name="school_id" class="form-control">
-                                <option value="">Global Default Policy (All Schools)</option>
-                                <?php foreach ($schools as $sch): ?>
-                                    <option value="<?= (int)$sch['id'] ?>">School-Specific: <?= e($sch['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Distribution Basis *</label>
-                            <select name="allocation_basis" class="form-control">
-                                <option value="net_after_gateway" selected>Net After Gateway Fees (Recommended)</option>
-                                <option value="gross">Gross Verified Payment</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Allocation Method *</label>
-                            <select name="allocation_method" class="form-control">
-                                <option value="percentage" selected>Percentage Split</option>
-                                <option value="fixed_per_student">Fixed Amount per Student</option>
-                                <option value="tiered">Tiered by Collection Volume</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Platform Share (%) *</label>
-                            <input type="number" step="0.01" min="0" max="100" name="platform_percentage" class="form-control" value="45.00" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">School Incentive (%) *</label>
-                            <input type="number" step="0.01" min="0" max="100" name="school_incentive_percentage" class="form-control" value="40.00" required>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Sales Rep Initial Rate (%) *</label>
-                            <input type="number" step="0.01" min="0" max="100" name="sales_rep_initial_rate" class="form-control" value="15.00" required>
-                            <small style="color: #64748b;">Terms 1–3 acquisition commission.</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sales Rep Recurring Rate (%) *</label>
-                            <input type="number" step="0.01" min="0" max="100" name="sales_rep_recurring_rate" class="form-control" value="7.50" required>
-                            <small style="color: #64748b;">Terms 4+ renewal commission.</small>
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Gateway Fee Bearer</label>
-                            <select name="gateway_fee_bearer" class="form-control">
-                                <option value="platform" selected>Platform (Absorbed by Platform Share)</option>
-                                <option value="school">School (Deducted from School Share)</option>
-                                <option value="split">Split Proportionately</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Min Collection Threshold (NGN)</label>
-                            <input type="number" step="1000" min="0" name="min_collection_threshold" class="form-control" value="0.00">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Notes, Justification & Contract Version</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Approved revenue-sharing contract notes or special negotiated terms."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createRevenueModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Revenue Policy</button>
-                </div>
-            </form>
+<div id="createRevenueModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h3 class="modal-title">Configure Revenue Sharing Policy</h3>
+            <button class="modal-close" onclick="closeModal('createRevenueModal')">&times;</button>
         </div>
+        <form method="POST" action="<?= url('superadmin/portal-billing/revenue-policy') ?>">
+            <?= csrf_field() ?>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Policy Code *</label>
+                        <input type="text" name="policy_code" class="form-control" placeholder="e.g. REV-GLOBAL-2026 or REV-APEX-CUSTOM" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Scope / School Arrangement *</label>
+                        <select name="school_id" class="form-control">
+                            <option value="">Global Default Policy (All Schools)</option>
+                            <?php foreach ($schools as $sch): ?>
+                                <option value="<?= (int)$sch['id'] ?>">School-Specific: <?= e($sch['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Distribution Basis *</label>
+                        <select name="allocation_basis" class="form-control">
+                            <option value="net_after_gateway" selected>Net After Gateway Fees (Recommended)</option>
+                            <option value="gross">Gross Verified Payment</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Allocation Method *</label>
+                        <select name="allocation_method" class="form-control">
+                            <option value="percentage" selected>Percentage Split</option>
+                            <option value="fixed_per_student">Fixed Amount per Student</option>
+                            <option value="tiered">Tiered by Collection Volume</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Platform Share (%) *</label>
+                        <input type="number" step="0.01" min="0" max="100" name="platform_percentage" class="form-control" value="60.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">School Incentive (%) * <small style="color: #0284c7; font-weight: 600;">(Max 25%)</small></label>
+                        <input type="number" step="0.01" min="0" max="25.00" name="school_incentive_percentage" class="form-control" value="25.00" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Sales Rep Initial Rate (%) *</label>
+                        <input type="number" step="0.01" min="0" max="100" name="sales_rep_initial_rate" class="form-control" value="15.00" required>
+                        <small style="color: #64748b;">Terms 1–3 acquisition commission.</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sales Rep Recurring Rate (%) *</label>
+                        <input type="number" step="0.01" min="0" max="100" name="sales_rep_recurring_rate" class="form-control" value="7.50" required>
+                        <small style="color: #64748b;">Terms 4+ renewal commission.</small>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Gateway Fee Bearer</label>
+                        <select name="gateway_fee_bearer" class="form-control">
+                            <option value="platform" selected>Platform (Absorbed by Platform Share)</option>
+                            <option value="school">School (Deducted from School Share)</option>
+                            <option value="split">Split Proportionately</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Min Collection Threshold (NGN)</label>
+                        <input type="number" step="1000" min="0" name="min_collection_threshold" class="form-control" value="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes, Justification & Contract Version</label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="Approved revenue-sharing contract notes or special negotiated terms."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('createRevenueModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Revenue Policy</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- Modal 4: Run Gateway Settlement Reconciliation -->
-<div class="modal" id="reconcileModal">
-    <div class="modal-dialog" style="max-width: 500px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h3 class="modal-title">Run Gateway Settlement Reconciliation</h3>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Reconciles gateway settlement reports against verified internal payments</p>
-                </div>
-                <button class="modal-close" onclick="closeModal('reconcileModal')">&times;</button>
+<div id="reconcileModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 500px;">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">Run Gateway Settlement Reconciliation</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Reconciles gateway settlement reports against verified internal payments</p>
             </div>
-            <form method="POST" action="<?= url('superadmin/portal-billing/reconcile') ?>">
-                <?= csrf_field() ?>
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div class="form-group">
-                        <label class="form-label">Payment Gateway *</label>
-                        <select name="gateway" class="form-control">
-                            <option value="paystack" selected>Paystack Settlement Ledger</option>
-                        </select>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Start Date *</label>
-                            <input type="date" name="start_date" class="form-control" value="<?= date('Y-m-d', strtotime('-30 days')) ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">End Date *</label>
-                            <input type="date" name="end_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                        </div>
-                    </div>
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem; color: #475569;">
-                        The reconciliation engine matches transaction references, compares gateway processing fees against internal deductions, and flags any un-reconciled discrepancies.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('reconcileModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Execute Reconciliation</button>
-                </div>
-            </form>
+            <button class="modal-close" onclick="closeModal('reconcileModal')">&times;</button>
         </div>
+        <form method="POST" action="<?= url('superadmin/portal-billing/reconcile') ?>">
+            <?= csrf_field() ?>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Payment Gateway *</label>
+                    <select name="gateway" class="form-control">
+                        <option value="paystack" selected>Paystack Settlement Ledger</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Start Date *</label>
+                        <input type="date" name="start_date" class="form-control" value="<?= date('Y-m-d', strtotime('-30 days')) ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">End Date *</label>
+                        <input type="date" name="end_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem; color: #475569;">
+                    The reconciliation engine matches transaction references, compares gateway processing fees against internal deductions, and flags any un-reconciled discrepancies.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('reconcileModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Execute Reconciliation</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- Modal 5: Resolve Settlement Discrepancy -->
-<div class="modal" id="resolveDiscrepancyModal">
-    <div class="modal-dialog" style="max-width: 500px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Resolve Settlement Discrepancy</h3>
-                <button class="modal-close" onclick="closeModal('resolveDiscrepancyModal')">&times;</button>
-            </div>
-            <form method="POST" action="<?= url('superadmin/portal-billing/reconcile/resolve') ?>">
-                <?= csrf_field() ?>
-                <input type="hidden" name="reconciliation_id" id="resolveReconId">
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <p style="font-size: 0.875rem; color: #334155; margin: 0;">
-                        Resolving discrepancy for batch <code id="resolveBatchDisplay"></code> (<strong id="resolveDiscrepancyDisplay" style="color: #dc2626;"></strong>).
-                    </p>
-                    <div class="form-group">
-                        <label class="form-label">Resolution Audit Notes & Justification *</label>
-                        <textarea name="notes" class="form-control" rows="3" required placeholder="State bank settlement timing, FX adjustment, or gateway fee reconciliation details."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('resolveDiscrepancyModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Record Manual Resolution</button>
-                </div>
-            </form>
+<div id="resolveDiscrepancyModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Resolve Settlement Discrepancy</h3>
+            <button class="modal-close" onclick="closeModal('resolveDiscrepancyModal')">&times;</button>
         </div>
+        <form method="POST" action="<?= url('superadmin/portal-billing/reconcile/resolve') ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="reconciliation_id" id="resolveReconId">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <p style="font-size: 0.875rem; color: #334155; margin: 0;">
+                    Resolving discrepancy for batch <code id="resolveBatchDisplay"></code> (<strong id="resolveDiscrepancyDisplay" style="color: #dc2626;"></strong>).
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Resolution Audit Notes & Justification *</label>
+                    <textarea name="notes" class="form-control" rows="3" required placeholder="State bank settlement timing, FX adjustment, or gateway fee reconciliation details."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('resolveDiscrepancyModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Record Manual Resolution</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- Modal 6: Approve Portal Refund -->
-<div class="modal" id="approveRefundModal">
-    <div class="modal-dialog" style="max-width: 500px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Approve & Execute Portal Refund</h3>
-                <button class="modal-close" onclick="closeModal('approveRefundModal')">&times;</button>
-            </div>
-            <form method="POST" action="<?= url('superadmin/portal-billing/refund/approve') ?>">
-                <?= csrf_field() ?>
-                <input type="hidden" name="refund_id" id="approveRefundId">
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div class="alert alert-warning" style="font-size: 0.85rem; line-height: 1.4;">
-                        <strong>Symmetrical Accounting Reversal:</strong> Approving refund <strong id="approveRefundRefDisplay"></strong> (<strong id="approveRefundAmountDisplay"></strong>) will trigger gateway payout reversal, debit the school incentive ledger, cancel sales commission, and restore pupil invoice balance due.
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Approval Notes / Authorization Code</label>
-                        <input type="text" name="notes" class="form-control" value="Approved by authorized platform compliance officer">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('approveRefundModal')">Cancel</button>
-                    <button type="submit" class="btn btn-danger">Execute Refund & Reversal</button>
-                </div>
-            </form>
+<div id="approveRefundModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Approve & Execute Portal Refund</h3>
+            <button class="modal-close" onclick="closeModal('approveRefundModal')">&times;</button>
         </div>
+        <form method="POST" action="<?= url('superadmin/portal-billing/refund/approve') ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="refund_id" id="approveRefundId">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="alert alert-warning" style="font-size: 0.85rem; line-height: 1.4;">
+                    <strong>Symmetrical Accounting Reversal:</strong> Approving refund <strong id="approveRefundRefDisplay"></strong> (<strong id="approveRefundAmountDisplay"></strong>) will trigger gateway payout reversal, debit the school incentive ledger, cancel sales commission, and restore pupil invoice balance due.
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Approval Notes / Authorization Code</label>
+                    <input type="text" name="notes" class="form-control" value="Approved by authorized platform compliance officer">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('approveRefundModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Execute Refund & Reversal</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- Modal 7: Reject Portal Refund -->
-<div class="modal" id="rejectRefundModal">
-    <div class="modal-dialog" style="max-width: 500px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Reject Portal Refund Request</h3>
-                <button class="modal-close" onclick="closeModal('rejectRefundModal')">&times;</button>
-            </div>
-            <form method="POST" action="<?= url('superadmin/portal-billing/refund/reject') ?>">
-                <?= csrf_field() ?>
-                <input type="hidden" name="refund_id" id="rejectRefundId">
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <p style="font-size: 0.875rem; color: #334155; margin: 0;">
-                        Rejecting refund request <strong id="rejectRefundRefDisplay"></strong>.
-                    </p>
-                    <div class="form-group">
-                        <label class="form-label">Rejection Reason *</label>
-                        <textarea name="reason" class="form-control" rows="3" required placeholder="Explain why the refund request was denied (e.g. services rendered, invalid proof)."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('rejectRefundModal')">Cancel</button>
-                    <button type="submit" class="btn btn-outline" style="color: #dc2626; border-color: #fca5a5;">Reject Request</button>
-                </div>
-            </form>
+<div id="rejectRefundModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Reject Portal Refund Request</h3>
+            <button class="modal-close" onclick="closeModal('rejectRefundModal')">&times;</button>
         </div>
+        <form method="POST" action="<?= url('superadmin/portal-billing/refund/reject') ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="refund_id" id="rejectRefundId">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <p style="font-size: 0.875rem; color: #334155; margin: 0;">
+                    Rejecting refund request <strong id="rejectRefundRefDisplay"></strong>.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Rejection Reason *</label>
+                    <textarea name="reason" class="form-control" rows="3" required placeholder="Explain why the refund request was denied (e.g. services rendered, invalid proof)."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('rejectRefundModal')">Cancel</button>
+                <button type="submit" class="btn btn-outline" style="color: #dc2626; border-color: #fca5a5;">Reject Request</button>
+            </div>
+        </form>
     </div>
 </div>
 

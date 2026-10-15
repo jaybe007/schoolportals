@@ -35,7 +35,7 @@
             <div class="stat-label">Total Accrued Incentives</div>
             <div class="stat-value" style="color: #059669;"><?= money($summary['incentive_accrued']) ?></div>
             <div class="stat-trend positive">
-                <span>School 40% agreed allocation</span>
+                <span>School 25% agreed allocation</span>
             </div>
         </div>
         <div class="stat-icon-wrapper icon-blue">

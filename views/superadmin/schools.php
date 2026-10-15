@@ -127,11 +127,11 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label" style="font-size: 0.75rem; color: #14532d;">School Incentive Share</label>
-                            <input type="text" class="form-control" value="40% (Accrued to School)" readonly style="background: #e2e8f0; color: #334155; font-weight: 600;">
+                            <input type="text" class="form-control" value="25% (Accrued to School &mdash; Maximum Incentive)" readonly style="background: #e2e8f0; color: #334155; font-weight: 600;">
                         </div>
                     </div>
                     <small style="display: block; font-size: 0.7rem; color: #15803d; margin-top: 0.4rem;">
-                        Default is ₦3,000 / student per academic term. Each term is reconciled with 40% incentive to the school and 15% initial / 7.5% renewal commission to assigned sales partners.
+                        Default is ₦3,000 / student per academic term. Each term is reconciled with up to 25% incentive to the school and 15% initial / 7.5% renewal commission to assigned sales partners.
                     </small>
                 </div>
 

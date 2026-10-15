@@ -644,14 +644,19 @@ class SuperAdminController
         $maxFee = !empty($request->post('max_fee')) ? (float)$request->post('max_fee') : null;
         $schoolTypes = trim((string)$request->post('eligible_school_types', 'all'));
         $studentCategories = trim((string)$request->post('eligible_student_categories', 'all'));
-        $discountPolicy = trim((string)$request->post('discount_policy', ''));
-        $exemptionsPolicy = trim((string)$request->post('exemptions_policy', ''));
+        $discountPolicyRaw = trim((string)$request->post('discount_policy', ''));
+        $discountPolicy = null;
+        if (!empty($discountPolicyRaw)) {
+            $decoded = json_decode($discountPolicyRaw, true);
+            $discountPolicy = ($decoded !== null) ? $discountPolicyRaw : json_encode(['description' => $discountPolicyRaw]);
+        }
+        $exemptionsPolicy = !empty($request->post('exemptions_policy')) ? trim((string)$request->post('exemptions_policy')) : null;
         $taxTreatment = (string)$request->post('tax_treatment', 'tax_inclusive');
         $taxRate = (float)$request->post('tax_rate', 0.00);
-        $effectiveDate = (string)$request->post('effective_date', date('Y-m-d'));
+        $effectiveDate = !empty($request->post('effective_date')) ? (string)$request->post('effective_date') : date('Y-m-d');
         $expiryDate = !empty($request->post('expiry_date')) ? (string)$request->post('expiry_date') : null;
         $status = (string)$request->post('status', 'active');
-        $notes = trim((string)$request->post('notes', ''));
+        $notes = !empty($request->post('notes')) ? trim((string)$request->post('notes')) : null;
         $confirmed = (bool)$request->post('confirm_authorization', false);
 
         if (empty($code)) {
@@ -746,8 +751,8 @@ class SuperAdminController
         $schoolId = !empty($request->post('school_id')) ? (int)$request->post('school_id') : null;
         $basis = (string)$request->post('allocation_basis', 'net_after_gateway');
         $method = (string)$request->post('allocation_method', 'percentage');
-        $platformPct = (float)$request->post('platform_percentage', 45.00);
-        $schoolPct = (float)$request->post('school_incentive_percentage', 40.00);
+        $platformPct = (float)$request->post('platform_percentage', 60.00);
+        $schoolPct = (float)$request->post('school_incentive_percentage', 25.00);
         $repInitial = (float)$request->post('sales_rep_initial_rate', 15.00);
         $repRecurring = (float)$request->post('sales_rep_recurring_rate', 7.50);
         $bearer = (string)$request->post('gateway_fee_bearer', 'platform');
@@ -758,6 +763,10 @@ class SuperAdminController
 
         if (empty($code)) {
             Response::redirect('/superadmin/portal-billing', 'Policy Code is required.', 'danger');
+        }
+
+        if ($schoolPct > 25.00) {
+            Response::redirect('/superadmin/portal-billing', 'School incentive percentage cannot exceed the maximum platform limit of 25.00%.', 'danger');
         }
 
         $userId = \EduSphere\Core\Auth::id();

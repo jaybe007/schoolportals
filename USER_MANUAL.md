@@ -136,7 +136,7 @@ The Super Administrator portal manages the SaaS business, tenant schools, and se
    - **School Type** (Nursery, Primary, Secondary, or Combined)
    - **School Official Email & Contact Phone**
    - **Per-Student Term Portal Fee** (Configurable per-student fee payable each academic term; platform default is ₦3,000.00 / student or custom negotiated rate)
-   - **Guaranteed School Incentive (40%)** (Automatically accrued to the school on verified student portal collections)
+   - **School Incentive (Up to 25% Maximum)** (Automatically accrued to the school on verified student portal collections)
    - **Attributed Sales Partner / Representative (Optional)** (Link registered sales partner for 15% initial / 7.5% recurring commission)
    - **Initial School Administrator Login Credentials** (Name and official admin email)
 4. Click **Provision Tenant School**. The platform provisions tenant records, assigns the primary domain, creates the school administrator account, and initializes the per-student term portal fee agreement.
@@ -154,7 +154,7 @@ Navigate to **Portal Billing & Revenue** (`/superadmin/portal-billing`) to manag
    - **Current Portal Fee:** Current standard default fee per student per academic term (₦3,000.00 / NGN).
    - **Eligible Students vs Billed Students:** Real-time count of enrolled pupils across all school tenants versus active billed charges.
    - **Invoiced & Verified Collections:** Total charges invoiced, total verified collections, platform collection rate (%), and outstanding parent balances.
-   - **Revenue-Sharing Allocations:** Retained SaaS platform revenue (45%), school incentives accrued (40%), sales partner commissions (15%), and processor gateway fees.
+   - **Revenue-Sharing Allocations:** Retained SaaS platform revenue (60%), school incentives accrued (up to 25% max), sales partner commissions (15%), and processor gateway fees.
    - **Reversals & Payouts:** Reconciled refunds/reversals, net distributable revenue, pending payout requests awaiting central approval, and completed disbursements.
 2. **Term-by-Term Financial Trends Table:**
    - Real database historical breakdown by academic session and term showing students billed, total invoiced, verified collections, collection rate progress bars, and platform/school/rep financial slices.
@@ -243,7 +243,7 @@ When a school begins operations, the School Admin sets up academic governance in
 3. Click **Create Subject**.
 
 ### 5. Term Portal Fee Governance & School Incentive Program
-Schools collect portal fees per student each academic term and earn a guaranteed **40% School Incentive** on every verified payment.
+Schools collect portal fees per student each academic term and earn an agreed **School Incentive (up to 25% maximum)** on every verified payment.
 1. Navigate to **Term Portal Fee** (`/school/term-portal-fee`).
 2. **Reviewing Fee Agreement:**
    - Review current term pricing agreement (e.g. `₦3,000.00 / student` for Apex Crown College, or negotiated rate).
@@ -258,7 +258,7 @@ Schools collect portal fees per student each academic term and earn a guaranteed
    - **Zero Duplicate Billing Guarantee:** Re-clicking the generation button safely scans for unbilled students and skips already-invoiced pupils using an SHA-256 cryptographic idempotency hash.
 5. **School Incentive Balance & Bank Payout Requests:**
    - Navigate to **Incentive Ledger** (`/school/incentives`).
-   - Track total term collections, accrued 40% incentive earnings, pending payouts, and net withdrawable balance.
+   - Track total term collections, accrued school incentive earnings (up to 25% maximum), pending payouts, and net withdrawable balance.
    - Click **Request Incentive Payout**, specify the withdrawal amount (e.g., `₦50,000.00`), provide corporate bank account details (Bank Name, Account Number, Account Name), and submit.
    - Once authorized by the platform Super Admin, funds are disbursed via direct bank transfer and the ledger is reconciled with a wire transfer reference.
 
@@ -454,7 +454,7 @@ The **Term Portal Fee** desk (`/school/term-portal-fee`) allows authorized schoo
 
 ### 6. Managing School Incentives & Payout Requests
 1. Navigate to **School Incentives** (`/school/incentives`) or view the incentive balance on the term fee overview.
-2. The ledger tracks every 40% incentive accrued in real time upon verified parent payments.
+2. The ledger tracks every agreed incentive accrued (up to 25% maximum) in real time upon verified parent payments.
 3. **Requesting Bank Payout:**
    - Click **Request Incentive Payout**.
    - Input requested amount (validated against available withdrawable balance).
@@ -714,7 +714,7 @@ The EduSphere Commercial, Billing, Payment Gateway, and Reconciliation Engine in
 | **8** | Rejecting invalid or duplicate payment notifications | Unique constraint `uq_portal_pmt_ref` and HMAC-SHA512 webhook signature verification prevent duplicate charges | **Verified (PASS)** |
 | **9** | Calculating allocations according to applicable policy | Policy engine calculates gross, gateway fees, net distributable, platform share, school incentive, and rep commission | **Verified (PASS)** |
 | **10** | Ensuring all allocations reconcile | Exact penny reconciliation check asserts `Distributable ≡ Platform + School + Rep` with zero rounding leakage | **Verified (PASS)** |
-| **11** | Calculating school incentives accurately | 40% incentive posted to append-only `school_incentive_ledger` with real-time balance tracking | **Verified (PASS)** |
+| **11** | Calculating school incentives accurately | 25% incentive posted to append-only `school_incentive_ledger` with real-time balance tracking | **Verified (PASS)** |
 | **12** | Calculating initial and recurring sales commissions | Terms 1–3 initial acquisition rate (15%) and terms 4+ recurring renewal rate (7.5%) verified | **Verified (PASS)** |
 | **13** | Preventing unauthorized commission changes and approvals | Compliance Engine strictly prevents Sales Reps from approving or modifying their own commissions | **Verified (PASS)** |
 | **14** | Handling partial payments and outstanding balances | Partial payment of ₦1,500 updates invoice to `partially_paid` with accurate remaining balance due | **Verified (PASS)** |

@@ -22,6 +22,13 @@ class TenantController
     {
         $schoolId = TenantContext::getSchoolId();
         if (!$schoolId) {
+            if (Auth::check() && Auth::hasRole('super_admin')) {
+                $firstSchool = Database::fetch("SELECT id FROM schools WHERE status = 'active' ORDER BY id ASC LIMIT 1");
+                if ($firstSchool) {
+                    TenantContext::setExplicitSchoolId((int)$firstSchool['id']);
+                    return (int)$firstSchool['id'];
+                }
+            }
             Response::redirect('/login', 'School tenant context could not be resolved.', 'danger');
         }
         return $schoolId;
