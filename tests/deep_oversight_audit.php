@@ -35,6 +35,7 @@ $controllerNamespaceMap = [
     'PortalController' => 'EduSphere\Controllers\PortalController',
     'SalesController' => 'EduSphere\Controllers\SalesController',
     'SchoolWebsiteController' => 'EduSphere\Controllers\SchoolWebsiteController',
+    'WebhookController' => 'EduSphere\Controllers\WebhookController',
 ];
 
 $checkedRoutes = 0;

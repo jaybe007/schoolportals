@@ -5,7 +5,165 @@
     </div>
 </div>
 
-<div class="card">
+<!-- Commission KPI Telemetry Grid -->
+<?php if (!empty($telemetry)): ?>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Attributed Schools</div>
+            <div class="stat-value"><?= (int)$telemetry['total_schools'] ?></div>
+            <div class="stat-trend positive">
+                <span><?= (int)$telemetry['billed_students'] ?> pupils billed across portfolio</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-blue">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Verified Collections</div>
+            <div class="stat-value" style="color: #059669;"><?= money((float)$telemetry['verified_collections']) ?></div>
+            <div class="stat-trend positive">
+                <span>Cash collections basis</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-emerald">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Initial Commissions (15%)</div>
+            <div class="stat-value" style="color: #2563eb;"><?= money((float)$telemetry['initial_commissions']) ?></div>
+            <div class="stat-trend">
+                <span>Terms 1–3 acquisition</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-indigo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Recurring Renewals (7.5%)</div>
+            <div class="stat-value" style="color: #7c3aed;"><?= money((float)$telemetry['recurring_commissions']) ?></div>
+            <div class="stat-trend positive">
+                <span>Terms 4+ renewal yield</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-purple">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-top: 1rem;">
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Pending Approval</div>
+            <div class="stat-value" style="color: #d97706;"><?= money((float)$telemetry['pending_commissions']) ?></div>
+            <div class="stat-trend">
+                <span>Awaiting manager sign-off</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-amber">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Approved Commissions</div>
+            <div class="stat-value" style="color: #0284c7;"><?= money((float)$telemetry['approved_commissions']) ?></div>
+            <div class="stat-trend positive">
+                <span>Queued for disbursement</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-blue">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Total Paid Out</div>
+            <div class="stat-value" style="color: #059669;"><?= money((float)$telemetry['paid_commissions']) ?></div>
+            <div class="stat-trend positive">
+                <span>Wire reference confirmed</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-emerald">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Reversals & Adjustments</div>
+            <div class="stat-value" style="color: #dc2626;"><?= money((float)$telemetry['reversed_commissions']) ?></div>
+            <div class="stat-trend">
+                <span>Symmetrical refund debit</span>
+            </div>
+        </div>
+        <div class="stat-icon-wrapper icon-rose">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Attributed Schools Directory -->
+<?php if (!empty($attributedSchools)): ?>
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">Attributed Schools Portfolio</h3>
+            <p class="card-subtitle">Active institutions mapped to representative commercial ownership</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>School Institution</th>
+                    <th>Representative</th>
+                    <th>Enrolled Pupils</th>
+                    <th>Billed Pupils</th>
+                    <th>Verified Collections</th>
+                    <th>Commissions Paid</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($attributedSchools as $as): ?>
+                <tr>
+                    <td>
+                        <strong><?= e($as['school_name']) ?></strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">Code: <?= e($as['school_code']) ?></div>
+                    </td>
+                    <td><?= e($as['rep_name']) ?></td>
+                    <td><?= (int)$as['enrolled_students'] ?> pupils</td>
+                    <td><strong><?= (int)$as['billed_students'] ?> pupils</strong></td>
+                    <td style="font-weight: 700; color: #059669;"><?= money((float)$as['verified_collections']) ?></td>
+                    <td style="font-weight: 700; color: #1e3a8a;"><?= money((float)$as['total_paid_comm']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">Subscription Commissions</h3>
+            <p class="card-subtitle">Legacy subscription fee commissions</p>
+        </div>
+    </div>
     <div class="table-responsive">
         <table class="table">
             <thead>

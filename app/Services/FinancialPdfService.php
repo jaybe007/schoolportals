@@ -138,6 +138,278 @@ class FinancialPdfService
         return $dompdf;
     }
 
+    /**
+     * Generate Consolidated Family Billing Statement PDF (Multi-Ward Consolidated Statement)
+     */
+    public static function generateConsolidatedFamilyStatementPdf(int $schoolId, int $parentId): Dompdf
+    {
+        $school = Database::fetch("SELECT * FROM schools WHERE id = ?", [$schoolId]);
+        if (!$school) {
+            throw new RuntimeException("School record not found.");
+        }
+
+        $parent = Database::fetch(
+            "SELECT p.*, u.name, u.email, u.phone
+             FROM parents p
+             JOIN users u ON u.id = p.user_id
+             WHERE p.id = ? AND p.school_id = ?",
+            [$parentId, $schoolId]
+        );
+
+        if (!$parent) {
+            throw new RuntimeException("Parent record not found or access denied.");
+        }
+
+        // Retrieve linked wards
+        $wards = Database::query(
+            "SELECT s.*, ca.name AS arm_name, cl.name AS class_name
+             FROM students s
+             LEFT JOIN class_arms ca ON ca.id = s.class_arm_id
+             LEFT JOIN class_levels cl ON cl.id = ca.class_level_id
+             WHERE s.parent_id = ? AND s.school_id = ?
+             ORDER BY s.first_name ASC",
+            [$parentId, $schoolId]
+        );
+
+        // Retrieve portal invoices
+        $portalInvoices = Database::query(
+            "SELECT pi.*, s.first_name, s.last_name, s.admission_number,
+                    ses.name AS session_name, t.name AS term_name
+             FROM portal_invoices pi
+             JOIN students s ON s.id = pi.student_id
+             LEFT JOIN academic_sessions ses ON ses.id = pi.session_id
+             LEFT JOIN academic_terms t ON t.id = pi.term_id
+             WHERE (pi.parent_id = ? OR s.parent_id = ?) AND pi.school_id = ?
+             ORDER BY pi.id DESC",
+            [$parentId, $parentId, $schoolId]
+        );
+
+        // Retrieve verified payment transactions
+        $payments = Database::query(
+            "SELECT pp.*, s.first_name, s.last_name, pi.invoice_number
+             FROM portal_payments pp
+             JOIN portal_invoices pi ON pi.id = pp.invoice_id
+             JOIN students s ON s.id = pp.student_id
+             WHERE (pp.parent_id = ? OR s.parent_id = ?) AND pp.school_id = ?
+             ORDER BY pp.id DESC",
+            [$parentId, $parentId, $schoolId]
+        );
+
+        $html = self::buildConsolidatedStatementHtml($school, $parent, $wards, $portalInvoices, $payments);
+
+        $dompdf = self::getDompdfInstance();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return $dompdf;
+    }
+
+    private static function buildConsolidatedStatementHtml(array $school, array $parent, array $wards, array $portalInvoices, array $payments): string
+    {
+        $schoolName = htmlspecialchars($school['name']);
+        $schoolMotto = htmlspecialchars($school['motto'] ?? 'Knowledge, Character & Excellence');
+        $schoolAddress = htmlspecialchars($school['address'] ?? 'Lagos, Nigeria');
+        $schoolPhone = htmlspecialchars($school['phone'] ?? '+234 800 EDUSPHERE');
+        $parentName = htmlspecialchars($parent['name']);
+        $parentEmail = htmlspecialchars($parent['email'] ?? '—');
+        $parentPhone = htmlspecialchars($parent['phone'] ?? '—');
+
+        $totalInvoiced = 0.0;
+        $totalPaid = 0.0;
+        $totalBalance = 0.0;
+        $totalDiscount = 0.0;
+
+        foreach ($portalInvoices as $pi) {
+            $totalInvoiced += (float)$pi['amount_due'];
+            $totalPaid += (float)$pi['paid_amount'];
+            $totalBalance += (float)$pi['balance_due'];
+            $totalDiscount += (float)$pi['discount_amount'];
+        }
+
+        $totInvFormatted = number_format($totalInvoiced, 2);
+        $totPaidFormatted = number_format($totalPaid, 2);
+        $totBalFormatted = number_format($totalBalance, 2);
+        $totDiscFormatted = number_format($totalDiscount, 2);
+
+        $wardsHtml = '';
+        foreach ($wards as $w) {
+            $wName = htmlspecialchars($w['first_name'] . ' ' . $w['last_name']);
+            $wAdm = htmlspecialchars($w['admission_number']);
+            $wClass = htmlspecialchars(($w['class_name'] ?? '') . ' ' . ($w['arm_name'] ?? ''));
+            $wardsHtml .= "<span style='display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 3px 8px; margin: 2px 4px; font-size: 11px;'><strong>{$wName}</strong> ({$wClass} &bull; {$wAdm})</span>";
+        }
+
+        $invRowsHtml = '';
+        if (empty($portalInvoices)) {
+            $invRowsHtml = "<tr><td colspan='7' style='text-align: center; color: #64748b; padding: 12px;'>No active billing statements found for this family.</td></tr>";
+        } else {
+            foreach ($portalInvoices as $inv) {
+                $invNo = htmlspecialchars($inv['invoice_number']);
+                $stuName = htmlspecialchars($inv['first_name'] . ' ' . $inv['last_name']);
+                $term = htmlspecialchars(($inv['term_name'] ?? 'Current Term') . ' (' . ($inv['session_name'] ?? '') . ')');
+                $gross = number_format((float)$inv['gross_amount'], 2);
+                $disc = (float)$inv['discount_amount'] > 0 ? '-' . number_format((float)$inv['discount_amount'], 2) : '—';
+                $due = number_format((float)$inv['amount_due'], 2);
+                $paid = number_format((float)$inv['paid_amount'], 2);
+                $bal = number_format((float)$inv['balance_due'], 2);
+                $statusBadge = strtoupper(htmlspecialchars($inv['status']));
+                $color = $inv['status'] === 'paid' ? '#059669' : ($inv['status'] === 'partially_paid' ? '#d97706' : '#dc2626');
+
+                $invRowsHtml .= "<tr>
+                    <td><code>{$invNo}</code></td>
+                    <td><strong>{$stuName}</strong><br><small style='color: #64748b;'>{$term}</small></td>
+                    <td>₦{$gross}</td>
+                    <td style='color: #059669;'>{$disc}</td>
+                    <td style='font-weight: bold;'>₦{$due}</td>
+                    <td style='color: #059669;'>₦{$paid}</td>
+                    <td style='color: {$color}; font-weight: bold;'>₦{$bal}</td>
+                </tr>";
+            }
+        }
+
+        $payRowsHtml = '';
+        if (empty($payments)) {
+            $payRowsHtml = "<tr><td colspan='6' style='text-align: center; color: #64748b; padding: 10px;'>No verified payment transactions recorded yet.</td></tr>";
+        } else {
+            foreach ($payments as $p) {
+                $ref = htmlspecialchars($p['payment_reference']);
+                $inv = htmlspecialchars($p['invoice_number']);
+                $stu = htmlspecialchars($p['first_name'] . ' ' . $p['last_name']);
+                $amt = number_format((float)$p['amount'], 2);
+                $gw = strtoupper(htmlspecialchars($p['gateway']));
+                $date = date('M j, Y g:i A', strtotime($p['created_at']));
+
+                $payRowsHtml .= "<tr>
+                    <td><code>{$ref}</code></td>
+                    <td>{$inv}</td>
+                    <td>{$stu}</td>
+                    <td style='color: #059669; font-weight: bold;'>₦{$amt}</td>
+                    <td>{$gw}</td>
+                    <td>{$date}</td>
+                </tr>";
+            }
+        }
+
+        return <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Consolidated Family Statement</title>
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 15px; }
+        .header-table { width: 100%; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 12px; }
+        .school-title { font-size: 18px; font-weight: bold; color: #1e3a8a; }
+        .school-sub { font-size: 10px; color: #64748b; }
+        .doc-title { text-align: right; font-size: 14px; font-weight: bold; color: #2563eb; text-transform: uppercase; }
+        .family-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; margin-bottom: 12px; }
+        .summary-box { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .summary-box td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; background: #f8fafc; }
+        .summary-num { font-size: 14px; font-weight: bold; margin-top: 3px; }
+        .table-data { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+        .table-data th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; font-size: 10px; text-align: left; }
+        .table-data td { border: 1px solid #cbd5e1; padding: 6px; font-size: 10px; }
+        .section-heading { font-size: 12px; font-weight: bold; color: #0f172a; margin: 12px 0 6px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; }
+        .footer { font-size: 9px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td>
+                <div class="school-title">{$schoolName}</div>
+                <div class="school-sub">{$schoolMotto} &bull; {$schoolAddress} &bull; Tel: {$schoolPhone}</div>
+            </td>
+            <td class="doc-title">
+                Consolidated Family Billing Statement<br>
+                <span style="font-size: 10px; color: #64748b; font-weight: normal;">Generated: {$totInvFormatted} NGN</span>
+            </td>
+        </tr>
+    </table>
+
+    <div class="family-card">
+        <table style="width: 100%;">
+            <tr>
+                <td style="width: 50%;">
+                    <strong>Parent / Guardian:</strong> {$parentName}<br>
+                    <small style="color: #64748b;">Email: {$parentEmail} &bull; Tel: {$parentPhone}</small>
+                </td>
+                <td style="width: 50%; text-align: right;">
+                    <strong>Statement Date:</strong> {$totBalFormatted} NGN Balance Due<br>
+                    <small style="color: #64748b;">Enrolled Children Count: <strong>{$parent['name']}</strong></small>
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top: 8px;">
+            <strong>Linked Wards:</strong> {$wardsHtml}
+        </div>
+    </div>
+
+    <table class="summary-box">
+        <tr>
+            <td style="width: 25%;">
+                <div style="color: #64748b; font-size: 9px; text-transform: uppercase;">Total Invoiced</div>
+                <div class="summary-num" style="color: #1e3a8a;">₦{$totInvFormatted}</div>
+            </td>
+            <td style="width: 25%;">
+                <div style="color: #64748b; font-size: 9px; text-transform: uppercase;">Family Discounts / Waivers</div>
+                <div class="summary-num" style="color: #059669;">₦{$totDiscFormatted}</div>
+            </td>
+            <td style="width: 25%;">
+                <div style="color: #64748b; font-size: 9px; text-transform: uppercase;">Total Verified Paid</div>
+                <div class="summary-num" style="color: #059669;">₦{$totPaidFormatted}</div>
+            </td>
+            <td style="width: 25%;">
+                <div style="color: #64748b; font-size: 9px; text-transform: uppercase;">Outstanding Family Balance</div>
+                <div class="summary-num" style="color: #dc2626;">₦{$totBalFormatted}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="section-heading">1. Term Portal Access & Cloud Fee Invoices by Pupil</div>
+    <table class="table-data">
+        <thead>
+            <tr>
+                <th>Invoice Ref</th>
+                <th>Pupil / Academic Term</th>
+                <th>Gross Fee</th>
+                <th>Discount</th>
+                <th>Net Due</th>
+                <th>Paid</th>
+                <th>Balance Due</th>
+            </tr>
+        </thead>
+        <tbody>
+            {$invRowsHtml}
+        </tbody>
+    </table>
+
+    <div class="section-heading">2. Verified Payment Receipt History</div>
+    <table class="table-data">
+        <thead>
+            <tr>
+                <th>Payment Ref</th>
+                <th>Invoice</th>
+                <th>Pupil</th>
+                <th>Amount Paid</th>
+                <th>Channel</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {$payRowsHtml}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Official Consolidated Family Statement authenticated by EduSphere Cloud Billing Engine &bull; All verified receipts remain permanently accessible online &bull; School Accounts Desk
+    </div>
+</body>
+</html>
+HTML;
+    }
+
     private static function buildReceiptHtml(array $school, array $r): string
     {
         $schoolName = htmlspecialchars($school['name']);

@@ -926,20 +926,67 @@ class TenantController
         $agreement = \EduSphere\Services\PortalBillingService::getOrCreateAgreement($schoolId, $sessionId, $termId);
         $summary = \EduSphere\Services\PortalBillingService::getTermSummary($schoolId, $sessionId, $termId);
 
+        $statusFilter = strtolower(trim((string)$request->get('status', 'all')));
+        $whereSql = "i.school_id = ? AND i.session_id = ? AND i.term_id = ?";
+        $params = [$schoolId, $sessionId, $termId];
+
+        if ($statusFilter === 'overdue') {
+            $whereSql .= " AND i.due_date < CURDATE() AND i.balance_due > 0 AND i.status != 'waived'";
+        } elseif (in_array($statusFilter, ['paid', 'unpaid', 'partially_paid', 'waived', 'disputed', 'cancelled'], true)) {
+            $whereSql .= " AND i.status = ?";
+            $params[] = $statusFilter;
+        }
+
         $invoices = Database::query(
-            "SELECT i.*, s.admission_number, s.first_name, s.last_name, ca.name AS arm_name, cl.name AS class_name
+            "SELECT i.*, s.admission_number, s.first_name, s.last_name, ca.name AS arm_name, cl.name AS class_name,
+                    CASE WHEN i.due_date < CURDATE() AND i.balance_due > 0 AND i.status != 'waived' THEN 1 ELSE 0 END AS is_overdue
              FROM portal_invoices i
              JOIN students s ON s.id = i.student_id
              LEFT JOIN class_arms ca ON ca.id = s.class_arm_id
              LEFT JOIN class_levels cl ON cl.id = ca.class_level_id
-             WHERE i.school_id = ? AND i.session_id = ? AND i.term_id = ?
+             WHERE {$whereSql}
              ORDER BY i.id DESC",
+            $params
+        );
+
+        $counts = Database::fetch(
+            "SELECT 
+                COUNT(*) AS count_all,
+                IFNULL(SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END), 0) AS count_paid,
+                IFNULL(SUM(CASE WHEN status = 'unpaid' THEN 1 ELSE 0 END), 0) AS count_unpaid,
+                IFNULL(SUM(CASE WHEN status = 'partially_paid' THEN 1 ELSE 0 END), 0) AS count_partial,
+                IFNULL(SUM(CASE WHEN status = 'waived' THEN 1 ELSE 0 END), 0) AS count_waived,
+                IFNULL(SUM(CASE WHEN status = 'disputed' THEN 1 ELSE 0 END), 0) AS count_disputed,
+                IFNULL(SUM(CASE WHEN due_date < CURDATE() AND balance_due > 0 AND status != 'waived' THEN 1 ELSE 0 END), 0) AS count_overdue
+             FROM portal_invoices
+             WHERE school_id = ? AND session_id = ? AND term_id = ?",
             [$schoolId, $sessionId, $termId]
         );
 
         $notices = Database::query(
             "SELECT * FROM portal_billing_notices WHERE school_id = ? AND term_id = ? ORDER BY id DESC",
             [$schoolId, $termId]
+        );
+
+        $payoutRequests = Database::query(
+            "SELECT * FROM school_payout_requests WHERE school_id = ? ORDER BY id DESC LIMIT 8",
+            [$schoolId]
+        );
+
+        $incentiveLedger = Database::query(
+            "SELECT * FROM school_incentive_ledger WHERE school_id = ? ORDER BY id DESC LIMIT 8",
+            [$schoolId]
+        );
+
+        // Fetch sample invoice for interactive preview
+        $sampleStudent = Database::fetch(
+            "SELECT s.*, cl.name AS class_level_name, ca.name AS class_arm_name 
+             FROM students s 
+             LEFT JOIN class_arms ca ON ca.id = s.class_arm_id 
+             LEFT JOIN class_levels cl ON cl.id = ca.class_level_id 
+             WHERE s.school_id = ? AND s.status = 'enrolled' 
+             ORDER BY s.id ASC LIMIT 1",
+            [$schoolId]
         );
 
         View::render('tenant.term_portal_fee', [
@@ -950,7 +997,12 @@ class TenantController
             'agreement' => $agreement,
             'summary' => $summary,
             'invoices' => $invoices,
+            'counts' => $counts,
+            'statusFilter' => $statusFilter,
             'notices' => $notices,
+            'payoutRequests' => $payoutRequests,
+            'incentiveLedger' => $incentiveLedger,
+            'sampleStudent' => $sampleStudent,
         ], 'tenant');
     }
 
@@ -968,7 +1020,7 @@ class TenantController
         $notes = trim((string)$request->post('school_notes', ''));
         \EduSphere\Services\PortalBillingService::acceptAgreement($agreementId, \EduSphere\Core\Auth::id(), $notes);
 
-        Response::redirect('/school/term-portal-fee', 'Term portal fee agreement accepted! You can now generate student invoices.', 'success');
+        Response::redirect('/school/term-portal-fee', 'Term portal fee agreement accepted and authorized! You can now generate student invoices.', 'success');
     }
 
     public function rejectFeeAgreement(Request $request, string $id): void
@@ -986,6 +1038,27 @@ class TenantController
         \EduSphere\Services\PortalBillingService::rejectAgreement($agreementId, \EduSphere\Core\Auth::id(), $reason);
 
         Response::redirect('/school/term-portal-fee', 'Fee agreement rejected. Central platform administration has been notified.', 'warning');
+    }
+
+    public function requestAgreementClarification(Request $request, string $id): void
+    {
+        $schoolId = $this->getSchoolId();
+        $agreementId = (int)$id;
+
+        $ag = Database::fetch("SELECT id, school_id FROM school_portal_fee_agreements WHERE id = ?", [$agreementId]);
+        if (!$ag || (int)$ag['school_id'] !== $schoolId) {
+            http_response_code(403);
+            die("Access Forbidden: Cross-tenant agreement manipulation is strictly prohibited.");
+        }
+
+        $clarification = trim((string)$request->post('clarification_notes', ''));
+        if (empty($clarification)) {
+            Response::redirect('/school/term-portal-fee', 'Clarification note is required.', 'danger');
+        }
+
+        \EduSphere\Services\PortalBillingService::requestClarification($agreementId, \EduSphere\Core\Auth::id(), $clarification);
+
+        Response::redirect('/school/term-portal-fee', 'Clarification requested! Central platform administrators will review your query.', 'info');
     }
 
     public function generatePortalInvoices(Request $request): void
@@ -1009,6 +1082,136 @@ class TenantController
         } catch (\Throwable $e) {
             Response::redirect('/school/term-portal-fee', $e->getMessage(), 'danger');
         }
+    }
+
+    public function adjustPortalInvoice(Request $request, string $id): void
+    {
+        $schoolId = $this->getSchoolId();
+        $invoiceId = (int)$id;
+
+        $inv = Database::fetch("SELECT id, school_id FROM portal_invoices WHERE id = ?", [$invoiceId]);
+        if (!$inv || (int)$inv['school_id'] !== $schoolId) {
+            http_response_code(403);
+            die("Access Forbidden: Cross-tenant invoice adjustment is strictly prohibited.");
+        }
+
+        $adjType = trim((string)$request->post('adjustment_type', 'scholarship_waiver'));
+        $discountAmount = (float)$request->post('discount_amount', 0.00);
+        $reason = trim((string)$request->post('reason', ''));
+
+        if (empty($reason)) {
+            Response::redirect('/school/term-portal-fee', 'Explanation and audit reason are required for billing adjustments.', 'danger');
+        }
+
+        try {
+            $res = \EduSphere\Services\PortalBillingService::applyBillingAdjustment(
+                $invoiceId,
+                \EduSphere\Core\Auth::id(),
+                $adjType,
+                $discountAmount,
+                $reason
+            );
+
+            Response::redirect('/school/term-portal-fee', "Billing correction applied: new balance is " . money($res['new_balance_due']) . " (Status: {$res['status']}).", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/school/term-portal-fee', $e->getMessage(), 'danger');
+        }
+    }
+
+    public function disputePortalInvoice(Request $request, string $id): void
+    {
+        $schoolId = $this->getSchoolId();
+        $invoiceId = (int)$id;
+
+        $inv = Database::fetch("SELECT id, school_id, status FROM portal_invoices WHERE id = ?", [$invoiceId]);
+        if (!$inv || (int)$inv['school_id'] !== $schoolId) {
+            http_response_code(403);
+            die("Access Forbidden: Cross-tenant invoice dispute is strictly prohibited.");
+        }
+
+        $reason = trim((string)$request->post('dispute_reason', ''));
+        if (empty($reason)) {
+            Response::redirect('/school/term-portal-fee', 'Dispute reason is required.', 'danger');
+        }
+
+        Database::execute(
+            "UPDATE portal_invoices SET status = 'disputed', dispute_reason = ?, updated_at = NOW() WHERE id = ?",
+            [$reason, $invoiceId]
+        );
+
+        AuditLogger::log('portal_invoice_disputed', 'portal_invoices', $invoiceId, [
+            'school_id' => $schoolId,
+            'reason' => $reason,
+            'disputed_by' => \EduSphere\Core\Auth::id(),
+        ]);
+
+        Response::redirect('/school/term-portal-fee', 'Invoice marked as disputed with audit trail logged.', 'warning');
+    }
+
+    public function sendParentReminders(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $term = Database::fetch("SELECT id FROM academic_terms WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId])
+            ?: Database::fetch("SELECT id FROM academic_terms WHERE school_id = ? ORDER BY id DESC LIMIT 1", [$schoolId]);
+        $termId = (int)($term['id'] ?? 1);
+
+        $count = \EduSphere\Services\PortalBillingService::sendPaymentReminders($schoolId, $termId, \EduSphere\Core\Auth::id());
+
+        Response::redirect('/school/term-portal-fee', "Payment reminders dispatched to parents of {$count} outstanding student invoices!", 'success');
+    }
+
+    public function exportBillingReport(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $session = Database::fetch("SELECT id, name FROM academic_sessions WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId])
+            ?: Database::fetch("SELECT id, name FROM academic_sessions WHERE school_id = ? ORDER BY id DESC LIMIT 1", [$schoolId]);
+        $term = Database::fetch("SELECT id, name FROM academic_terms WHERE school_id = ? AND is_current = 1 LIMIT 1", [$schoolId])
+            ?: Database::fetch("SELECT id, name FROM academic_terms WHERE school_id = ? ORDER BY id DESC LIMIT 1", [$schoolId]);
+
+        $sessionId = (int)($session['id'] ?? 1);
+        $termId = (int)($term['id'] ?? 1);
+
+        $invoices = Database::query(
+            "SELECT i.invoice_number, s.admission_number, s.first_name, s.last_name,
+                    cl.name AS class_level, ca.name AS class_arm,
+                    i.gross_amount, i.discount_amount, i.waiver_reason,
+                    i.amount_due, i.paid_amount, i.balance_due, i.status, i.due_date, i.created_at
+             FROM portal_invoices i
+             JOIN students s ON s.id = i.student_id
+             LEFT JOIN class_arms ca ON ca.id = s.class_arm_id
+             LEFT JOIN class_levels cl ON cl.id = ca.class_level_id
+             WHERE i.school_id = ? AND i.session_id = ? AND i.term_id = ?
+             ORDER BY i.id ASC",
+            [$schoolId, $sessionId, $termId]
+        );
+
+        $filename = "Portal_Billing_Report_Term{$termId}_" . date('Ymd_His') . ".csv";
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Invoice Number', 'Admission No', 'Student Name', 'Class Level', 'Class Arm', 'Gross Amount (NGN)', 'Discount/Waiver', 'Waiver Reason', 'Amount Due (NGN)', 'Paid Amount (NGN)', 'Balance Due (NGN)', 'Status', 'Due Date', 'Billed Date']);
+
+        foreach ($invoices as $row) {
+            fputcsv($out, [
+                $row['invoice_number'],
+                $row['admission_number'],
+                $row['first_name'] . ' ' . $row['last_name'],
+                $row['class_level'] ?? 'N/A',
+                $row['class_arm'] ?? 'N/A',
+                number_format((float)$row['gross_amount'], 2, '.', ''),
+                number_format((float)$row['discount_amount'], 2, '.', ''),
+                $row['waiver_reason'] ?? '',
+                number_format((float)$row['amount_due'], 2, '.', ''),
+                number_format((float)$row['paid_amount'], 2, '.', ''),
+                number_format((float)$row['balance_due'], 2, '.', ''),
+                strtoupper($row['status']),
+                $row['due_date'],
+                $row['created_at'],
+            ]);
+        }
+        fclose($out);
+        exit;
     }
 
     public function publishBillingNotice(Request $request): void
@@ -1303,6 +1506,212 @@ class TenantController
         Database::execute("UPDATE parent_school_messages SET updated_at = NOW() WHERE id = ?", [$threadId]);
 
         Response::redirect('/school/messages?thread_id=' . $threadId, 'Reply delivered to parent.', 'success');
+    }
+
+    public function schoolIncentives(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $summary = \EduSphere\Services\PortalBillingService::getTermSummary($schoolId);
+
+        $payoutRequests = Database::query(
+            "SELECT * FROM school_payout_requests WHERE school_id = ? ORDER BY id DESC",
+            [$schoolId]
+        );
+
+        $ledger = Database::query(
+            "SELECT * FROM school_incentive_ledger WHERE school_id = ? ORDER BY id DESC LIMIT 50",
+            [$schoolId]
+        );
+
+        $termPerformance = Database::query(
+            "SELECT 
+                i.session_id, i.term_id,
+                IFNULL(ses.name, CONCAT('Session #', i.session_id)) AS session_name,
+                IFNULL(t.name, CONCAT('Term #', i.term_id)) AS term_name,
+                COUNT(i.id) AS total_invoices,
+                SUM(CASE WHEN i.status = 'paid' THEN 1 ELSE 0 END) AS paid_invoices,
+                IFNULL(SUM(i.paid_amount), 0) AS total_collected,
+                (SELECT IFNULL(SUM(amount), 0) FROM school_incentive_ledger WHERE school_id = ? AND term_id = i.term_id AND entry_type = 'accrual') AS accrued_incentive
+             FROM portal_invoices i
+             LEFT JOIN academic_sessions ses ON ses.id = i.session_id
+             LEFT JOIN academic_terms t ON t.id = i.term_id
+             WHERE i.school_id = ?
+             GROUP BY i.session_id, i.term_id, ses.name, t.name
+             ORDER BY i.session_id DESC, i.term_id DESC",
+            [$schoolId, $schoolId]
+        );
+
+        View::render('tenant.incentives', [
+            'title' => 'School Incentives - ' . (TenantContext::getSchool()['name'] ?? ''),
+            'activeNav' => 'incentives',
+            'summary' => $summary,
+            'payoutRequests' => $payoutRequests,
+            'ledger' => $ledger,
+            'termPerformance' => $termPerformance,
+        ], 'tenant');
+    }
+
+    public function requestSchoolIncentivePayout(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $userId = Auth::id();
+        $amount = (float)$request->post('amount', 0.0);
+        $bankName = trim((string)$request->post('bank_name', ''));
+        $accountNumber = trim((string)$request->post('account_number', ''));
+        $accountName = trim((string)$request->post('account_name', ''));
+
+        try {
+            \EduSphere\Services\RevenueSharingService::requestSchoolPayout(
+                $schoolId,
+                $amount,
+                $bankName,
+                $accountNumber,
+                $accountName,
+                $userId
+            );
+
+            Response::redirect('/school/incentives', "Payout request of " . money($amount) . " submitted successfully for Super Admin authorization.", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/school/incentives', $e->getMessage(), 'danger');
+        }
+    }
+
+    public function exportIncentivesReport(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $school = TenantContext::getSchool();
+        $ledger = Database::query(
+            "SELECT * FROM school_incentive_ledger WHERE school_id = ? ORDER BY id DESC",
+            [$schoolId]
+        );
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="School_Incentives_Ledger_' . date('Ymd_His') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['EduSphere SaaS - School Incentive Double-Entry Financial Ledger']);
+        fputcsv($output, ['School: ' . ($school['name'] ?? 'Apex'), 'Export Date: ' . date('Y-m-d H:i:s')]);
+        fputcsv($output, []);
+        fputcsv($output, ['ID', 'Date', 'Reference', 'Entry Type', 'Notes', 'Amount (NGN)', 'Running Balance (NGN)']);
+
+        foreach ($ledger as $row) {
+            fputcsv($output, [
+                $row['id'],
+                $row['created_at'],
+                $row['reference'],
+                ucfirst($row['entry_type']),
+                $row['notes'] ?? '',
+                number_format((float)$row['amount'], 2, '.', ''),
+                number_format((float)$row['running_balance'], 2, '.', '')
+            ]);
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    public function billingNotices(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $school = TenantContext::getSchool();
+        $session = TenantContext::getActiveSession();
+        $term = TenantContext::getActiveTerm();
+
+        $agreement = null;
+        if ($session && $term) {
+            $agreement = \EduSphere\Services\PortalBillingService::getOrCreateAgreement($schoolId, (int)$session['id'], (int)$term['id']);
+        }
+
+        $templates = \EduSphere\Services\BillingCommunicationService::getTemplates($schoolId);
+        $logs = \EduSphere\Services\BillingCommunicationService::getDeliveryLogs($schoolId, 'all', 50);
+
+        $pendingReminderCount = 0;
+        if ($term) {
+            $pendingReminderCount = (int)(Database::fetch(
+                "SELECT COUNT(*) AS c FROM portal_invoices WHERE school_id = ? AND term_id = ? AND status IN ('unpaid', 'partially_paid') AND balance_due > 0",
+                [$schoolId, (int)$term['id']]
+            )['c'] ?? 0);
+        }
+
+        View::render('tenant.billing_notices', [
+            'title' => 'School Billing Notices & Communication Engine',
+            'school' => $school,
+            'session' => $session,
+            'term' => $term,
+            'agreement' => $agreement,
+            'templates' => $templates,
+            'deliveryLogs' => $logs,
+            'pendingReminderCount' => $pendingReminderCount,
+        ]);
+    }
+
+    public function broadcastTermAnnouncement(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $termId = (int)$request->post('term_id', 0);
+        $subject = trim((string)$request->post('subject', ''));
+        $body = trim((string)$request->post('body', ''));
+
+        try {
+            $res = \EduSphere\Services\BillingCommunicationService::broadcastTermAnnouncement(
+                $schoolId,
+                $termId,
+                Auth::id(),
+                $subject ?: null,
+                $body ?: null
+            );
+            Response::redirect('/school/billing-notices', "Term Portal Fee Announcement successfully reviewed, approved, and broadcast to {$res['recipient_count']} parent(s)!", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/school/billing-notices', $e->getMessage(), 'danger');
+        }
+    }
+
+    public function sendBillingReminders(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $termId = (int)$request->post('term_id', 0);
+
+        try {
+            $res = \EduSphere\Services\BillingCommunicationService::sendBatchPaymentReminders($schoolId, $termId, Auth::id());
+            Response::redirect('/school/billing-notices', "Dispatched {$res['sent_count']} personalized payment reminder(s) (Skipped {$res['skipped_count']} recently notified).", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/school/billing-notices', $e->getMessage(), 'danger');
+        }
+    }
+
+    public function updateCommunicationTemplate(Request $request): void
+    {
+        $schoolId = $this->getSchoolId();
+        $templateKey = trim((string)$request->post('template_key', ''));
+        $title = trim((string)$request->post('title', ''));
+        $subject = trim((string)$request->post('subject', ''));
+        $channels = trim((string)$request->post('channels', 'email,sms,portal'));
+        $content = trim((string)$request->post('content_template', ''));
+
+        try {
+            \EduSphere\Services\BillingCommunicationService::saveTemplate(
+                $schoolId,
+                $templateKey,
+                $title,
+                $subject,
+                $channels,
+                $content
+            );
+            Response::redirect('/school/billing-notices', "Template '{$title}' updated successfully for your school!", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/school/billing-notices', $e->getMessage(), 'danger');
+        }
+    }
+
+    public function retryNotificationLog(Request $request, string $id): void
+    {
+        $logId = (int)$id;
+        try {
+            \EduSphere\Services\BillingCommunicationService::retryNotification($logId);
+            Response::redirect('/school/billing-notices', "Notification log #{$logId} re-dispatched successfully.", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/school/billing-notices', $e->getMessage(), 'danger');
+        }
     }
 }
 

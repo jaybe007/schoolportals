@@ -80,6 +80,10 @@
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
                 <span>School Incentives</span>
             </a>
+            <a href="<?= url('school/billing-notices') ?>" class="nav-link <?= ($activeNav ?? '') === 'billing_notices' ? 'active' : '' ?>">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <span>Billing Notices & Comms</span>
+            </a>
 
             <div class="nav-section-title">Support & Website</div>
             <a href="<?= url('school/library') ?>" class="nav-link <?= ($activeNav ?? '') === 'library' ? 'active' : '' ?>">

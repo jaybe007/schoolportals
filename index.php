@@ -67,8 +67,12 @@ $router->post('/become-a-sales-rep', [AuthController::class, 'registerSalesRep']
 $router->get('/sales/register', [AuthController::class, 'showSalesRepRegister']);
 $router->post('/sales/register', [AuthController::class, 'registerSalesRep']);
 
+// Public Payment Gateway Webhooks (Zero-trust HMAC verification & idempotency)
+$router->post('/webhook/paystack', [\EduSphere\Controllers\WebhookController::class, 'handlePaystack']);
+$router->post('/api/paystack/webhook', [\EduSphere\Controllers\WebhookController::class, 'handlePaystack']);
+
 // Super Administrator HQ Routes
-$router->group(['prefix' => '/superadmin', 'middleware' => ['auth', 'role:super_admin']], function(Router $r) {
+$router->group(['prefix' => '/superadmin', 'middleware' => ['auth', 'role:super_admin,finance_admin']], function(Router $r) {
     $r->get('/', [SuperAdminController::class, 'dashboard']);
     $r->get('/schools', [SuperAdminController::class, 'schools']);
     $r->post('/schools/create', [SuperAdminController::class, 'createSchool']);
@@ -76,10 +80,19 @@ $router->group(['prefix' => '/superadmin', 'middleware' => ['auth', 'role:super_
     $r->post('/schools/{id}/add-domain', [SuperAdminController::class, 'addDomain']);
     $r->get('/portal-billing', [SuperAdminController::class, 'portalBilling']);
     $r->post('/portal-billing/pricing', [SuperAdminController::class, 'createPricingPolicy']);
+    $r->post('/portal-billing/pricing/{id}/status', [SuperAdminController::class, 'updatePricingPolicyStatus']);
+    $r->post('/portal-billing/revenue-policy', [SuperAdminController::class, 'createRevenuePolicy']);
     $r->post('/portal-billing/payouts/{id}/approve', [SuperAdminController::class, 'approvePayout']);
+    $r->post('/portal-billing/reconcile', [SuperAdminController::class, 'runSettlementReconciliation']);
+    $r->post('/portal-billing/reconcile/resolve', [SuperAdminController::class, 'resolveSettlementDiscrepancy']);
+    $r->post('/portal-billing/refund/approve', [SuperAdminController::class, 'approvePortalRefund']);
+    $r->post('/portal-billing/refund/reject', [SuperAdminController::class, 'rejectPortalRefund']);
     $r->get('/subscriptions', [SuperAdminController::class, 'subscriptions']);
     $r->post('/subscriptions/create-plan', [SuperAdminController::class, 'createPlan']);
     $r->get('/users', [SuperAdminController::class, 'users']);
+    $r->post('/users/create', [SuperAdminController::class, 'createUser']);
+    $r->post('/users/{id}/update', [SuperAdminController::class, 'updateUser']);
+    $r->post('/users/{id}/toggle-status', [SuperAdminController::class, 'toggleUserStatus']);
     $r->get('/audit-logs', [SuperAdminController::class, 'auditLogs']);
     $r->get('/settings', [SuperAdminController::class, 'settings']);
     $r->post('/settings', [SuperAdminController::class, 'settings']);
@@ -109,12 +122,23 @@ $router->group(['prefix' => '/school', 'middleware' => ['auth', 'role:school_adm
     $r->get('/finance/receipts/{id}/pdf', [TenantController::class, 'downloadReceipt']);
     $r->get('/finance/invoices/{id}/pdf', [TenantController::class, 'downloadInvoice']);
     $r->get('/term-portal-fee', [TenantController::class, 'termPortalFee']);
+    $r->get('/term-portal-fee/export', [TenantController::class, 'exportBillingReport']);
     $r->post('/term-portal-fee/{id}/accept', [TenantController::class, 'acceptFeeAgreement']);
     $r->post('/term-portal-fee/{id}/reject', [TenantController::class, 'rejectFeeAgreement']);
+    $r->post('/term-portal-fee/{id}/clarify', [TenantController::class, 'requestAgreementClarification']);
     $r->post('/term-portal-fee/generate-invoices', [TenantController::class, 'generatePortalInvoices']);
     $r->post('/term-portal-fee/publish-notice', [TenantController::class, 'publishBillingNotice']);
-    $r->get('/incentives', [TenantController::class, 'incentives']);
-    $r->post('/incentives/request-payout', [TenantController::class, 'requestIncentivePayout']);
+    $r->post('/term-portal-fee/send-reminders', [TenantController::class, 'sendParentReminders']);
+    $r->post('/term-portal-fee/invoices/{id}/adjust', [TenantController::class, 'adjustPortalInvoice']);
+    $r->post('/term-portal-fee/invoices/{id}/dispute', [TenantController::class, 'disputePortalInvoice']);
+    $r->get('/incentives', [TenantController::class, 'schoolIncentives']);
+    $r->get('/incentives/export', [TenantController::class, 'exportIncentivesReport']);
+    $r->post('/incentives/request-payout', [TenantController::class, 'requestSchoolIncentivePayout']);
+    $r->get('/billing-notices', [TenantController::class, 'billingNotices']);
+    $r->post('/billing-notices/broadcast', [TenantController::class, 'broadcastTermAnnouncement']);
+    $r->post('/billing-notices/reminders', [TenantController::class, 'sendBillingReminders']);
+    $r->post('/billing-notices/template/update', [TenantController::class, 'updateCommunicationTemplate']);
+    $r->post('/billing-notices/retry/{id}', [TenantController::class, 'retryNotificationLog']);
     $r->get('/library', [TenantController::class, 'library']);
     $r->get('/notices', [TenantController::class, 'notices']);
     $r->post('/notices/create', [TenantController::class, 'createNotice']);
@@ -150,8 +174,12 @@ $router->group(['prefix' => '/portal', 'middleware' => ['auth']], function(Route
     $r->post('/student/pay-portal-fee', [PortalController::class, 'payStudentPortalFee'], ['role:student,super_admin']);
     $r->get('/parent', [PortalController::class, 'parentDashboard'], ['role:parent,super_admin']);
     $r->get('/parent/wards/{id}/report-card', [PortalController::class, 'downloadWardReportCard'], ['role:parent,super_admin']);
+    $r->get('/parent/statement/pdf', [PortalController::class, 'downloadConsolidatedFamilyStatement'], ['role:parent,super_admin']);
+    $r->post('/parent/pay-school-fee', [PortalController::class, 'payWardSchoolFee'], ['role:parent,super_admin']);
     $r->post('/parent/pay-portal-fee', [PortalController::class, 'payPortalInvoice'], ['role:parent,super_admin']);
+    $r->post('/parent/pay-consolidated-portal-fee', [PortalController::class, 'payConsolidatedPortalInvoices'], ['role:parent,super_admin']);
     $r->post('/parent/dispute-portal-fee', [PortalController::class, 'disputePortalInvoice'], ['role:parent,super_admin']);
+    $r->post('/parent/request-refund', [PortalController::class, 'requestPortalRefund'], ['role:parent,super_admin']);
     $r->get('/parent/messages', [PortalController::class, 'parentMessages'], ['role:parent,super_admin']);
     $r->post('/parent/messages/send', [PortalController::class, 'sendParentMessage'], ['role:parent,super_admin']);
     $r->post('/parent/messages/{id}/reply', [PortalController::class, 'replyParentMessage'], ['role:parent,super_admin']);

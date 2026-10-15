@@ -290,11 +290,74 @@ class SalesController
             );
         }
 
+        // Attributed Schools Portfolio & Telemetry
+        $whereRep = ($isManager || !$repId) ? "" : "WHERE sl.rep_id = " . (int)$repId;
+        $attributedSchools = Database::query(
+            "SELECT sl.created_school_id AS school_id, s.name AS school_name, s.code AS school_code,
+                    u_rep.name AS rep_name,
+                    (SELECT COUNT(*) FROM students stu WHERE stu.school_id = s.id AND stu.status = 'enrolled') AS enrolled_students,
+                    (SELECT COUNT(DISTINCT pi.student_id) FROM portal_invoices pi WHERE pi.school_id = s.id) AS billed_students,
+                    (SELECT IFNULL(SUM(paid_amount), 0) FROM portal_invoices pi WHERE pi.school_id = s.id) AS verified_collections,
+                    (SELECT IFNULL(SUM(commission_amount), 0) FROM portal_commission_ledger pcl WHERE pcl.school_id = s.id AND pcl.status = 'paid') AS total_paid_comm
+             FROM sales_leads sl
+             JOIN schools s ON s.id = sl.created_school_id
+             JOIN sales_representatives sr ON sr.id = sl.rep_id
+             JOIN users u_rep ON u_rep.id = sr.user_id
+             {$whereRep}
+             GROUP BY sl.created_school_id, s.name, s.code, u_rep.name
+             ORDER BY s.name ASC"
+        );
+
+        // Aggregate Telemetry
+        $totalAttributedSchools = count($attributedSchools);
+        $totalBilledStudents = (int)array_sum(array_column($attributedSchools, 'billed_students'));
+        $totalVerifiedCollections = (float)array_sum(array_column($attributedSchools, 'verified_collections'));
+
+        $initialCommissions = 0.0;
+        $recurringCommissions = 0.0;
+        $pendingCommissions = 0.0;
+        $approvedCommissions = 0.0;
+        $paidCommissions = 0.0;
+        $reversedCommissions = 0.0;
+
+        foreach ($portalCommissions as $pc) {
+            $amt = (float)$pc['commission_amount'];
+            if ($pc['commission_tier'] === 'initial') {
+                $initialCommissions += $amt;
+            } else {
+                $recurringCommissions += $amt;
+            }
+
+            if ($pc['status'] === 'pending') {
+                $pendingCommissions += $amt;
+            } elseif ($pc['status'] === 'approved') {
+                $approvedCommissions += $amt;
+            } elseif ($pc['status'] === 'paid') {
+                $paidCommissions += $amt;
+            } elseif ($pc['status'] === 'reversed' || $pc['status'] === 'disputed') {
+                $reversedCommissions += $amt;
+            }
+        }
+
+        $telemetry = [
+            'total_schools' => $totalAttributedSchools,
+            'billed_students' => $totalBilledStudents,
+            'verified_collections' => $totalVerifiedCollections,
+            'initial_commissions' => $initialCommissions,
+            'recurring_commissions' => $recurringCommissions,
+            'pending_commissions' => $pendingCommissions,
+            'approved_commissions' => $approvedCommissions,
+            'paid_commissions' => $paidCommissions,
+            'reversed_commissions' => $reversedCommissions,
+        ];
+
         View::render('sales.commissions', [
             'title' => 'Commission Ledger - EduSphere',
             'activeNav' => 'commissions',
             'commissions' => $commissions,
             'portalCommissions' => $portalCommissions,
+            'attributedSchools' => $attributedSchools,
+            'telemetry' => $telemetry,
             'isManager' => $isManager,
         ], 'sales');
     }

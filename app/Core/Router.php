@@ -157,9 +157,29 @@ class Router
             $allowedRoles = explode(',', substr($middleware, 5));
             $userRole = Auth::role();
 
+            // Super Admin can execute any action across the entire platform
+            if ($userRole === 'super_admin') {
+                return;
+            }
+
             if (!in_array($userRole, $allowedRoles, true)) {
                 http_response_code(403);
                 View::render('errors.403', ['message' => 'You do not have permission to access this area.'], 'auth');
+                exit;
+            }
+            return;
+        }
+
+        // 4. Permission middleware: can:manage_schools or can:reconcile_payments
+        if (str_starts_with($middleware, 'can:')) {
+            if (!Auth::check()) {
+                Response::redirect('/login', 'Access denied. Please log in.', 'danger');
+            }
+
+            $permission = substr($middleware, 4);
+            if (!Auth::can($permission)) {
+                http_response_code(403);
+                View::render('errors.403', ['message' => 'You lack the required permission (' . $permission . ') to perform this action.'], 'auth');
                 exit;
             }
             return;

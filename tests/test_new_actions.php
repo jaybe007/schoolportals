@@ -131,7 +131,7 @@ assertAction($stuInDb !== false && !empty($stuInDb['admission_number']), "Studen
 
 // 4. Create Academic Session
 echo "\n4. School Admin: Create Academic Session...\n";
-$sessName = '2027/2028_' . rand(10, 99);
+$sessName = '2027/2028_' . rand(10000, 99999);
 $resSess = testHttp('/school/academics/create-session', $apexCookie, 'POST', [
     'name' => $sessName,
     'start_date' => '2027-09-01',
@@ -144,7 +144,7 @@ assertAction($sessInDb !== false, "Session '{$sessName}' created in database");
 
 // 5. Create Class Arm
 echo "\n5. School Admin: Create Class Arm...\n";
-$armName = 'Titanium_' . rand(10, 99);
+$armName = 'Titanium_' . rand(10000, 99999);
 $resArm = testHttp('/school/academics/create-arm', $apexCookie, 'POST', [
     'class_level_id' => 1,
     'name' => $armName,
@@ -156,7 +156,7 @@ assertAction($armInDb !== false, "Class Arm '{$armName}' created in database");
 
 // 6. Create Subject
 echo "\n6. School Admin: Create Subject...\n";
-$subCode = 'ROB_' . rand(10, 99);
+$subCode = 'ROB_' . rand(10000, 99999);
 $resSub = testHttp('/school/academics/create-subject', $apexCookie, 'POST', [
     'name' => 'Robotics & AI',
     'code' => $subCode,
@@ -168,7 +168,7 @@ assertAction($subInDb !== false, "Subject '{$subCode}' created in database");
 
 // 7. Onboard Staff Member
 echo "\n7. School Admin: Onboard Faculty/Staff...\n";
-$staffEmail = 'staff_' . rand(100, 999) . '@apexcollege.edu.ng';
+$staffEmail = 'staff_' . rand(10000, 99999) . '@apexcollege.edu.ng';
 $resStaff = testHttp('/school/staff/create', $apexCookie, 'POST', [
     'name' => 'Engr. Daniel Alabi',
     'email' => $staffEmail,
@@ -194,6 +194,67 @@ $resInv = testHttp('/school/finance/create-invoice', $apexCookie, 'POST', [
 assertAction($resInv['code'] === 302, "Issued invoice -> redirected (HTTP 302)");
 $invInDb = Database::fetch("SELECT * FROM fee_invoices WHERE student_id = ? AND total_amount = 195000.00", [$stuInDb['id']]);
 assertAction($invInDb !== false && (float)$invInDb['balance_due'] === 195000.0, "Invoice '{$invInDb['invoice_number']}' created with balance ₦195,000.00");
+
+// 9. Super Admin: Create Administrator & Assign Role and Permissions
+echo "\n9. Super Admin: Create Administrator & Assign Permissions...\n";
+$adminEmail = 'admin_test_' . rand(100, 999) . '@edusphere.example';
+$permIds = Database::query("SELECT id FROM permissions WHERE slug IN ('reconcile_payments', 'approve_payouts', 'manage_refunds')");
+$permIdList = array_column($permIds, 'id');
+
+$resAdmin = testHttp('/superadmin/users/create', $superCookie, 'POST', [
+    'name' => 'Alhaji Gambo Finance',
+    'email' => $adminEmail,
+    'phone' => '08055667788',
+    'password' => 'SecurePass123!',
+    'role' => 'finance_admin',
+    'school_id' => 0, // Platform HQ
+    'permissions' => $permIdList
+]);
+assertAction($resAdmin['code'] === 302, "Super Admin created administrator -> redirected (HTTP 302)", "Got HTTP {$resAdmin['code']}: " . substr(strip_tags($resAdmin['body']), 0, 150));
+$adminInDb = Database::fetch("SELECT * FROM users WHERE email = ?", [$adminEmail]);
+assertAction($adminInDb !== false && $adminInDb['role'] === 'finance_admin', "Administrator '{$adminEmail}' created with role 'finance_admin'");
+
+// 10. Verify Assigned Permissions on Created Administrator
+echo "\n10. Testing Created Administrator Granular Permissions...\n";
+$adminId = (int)$adminInDb['id'];
+$canReconcile = \EduSphere\Core\Auth::can('reconcile_payments', $adminId);
+$canPayout = \EduSphere\Core\Auth::can('approve_payouts', $adminId);
+$canManagePlatform = \EduSphere\Core\Auth::can('manage_platform', $adminId);
+assertAction($canReconcile && $canPayout, "Finance Admin possesses granted permissions ('reconcile_payments' and 'approve_payouts')");
+assertAction(!$canManagePlatform, "Finance Admin strictly lacks ungranted platform root permission ('manage_platform')");
+
+// 11. Super Admin: Modify Administrator Role and Permissions
+echo "\n11. Super Admin: Modify Administrator Role & Permissions...\n";
+$schoolPermId = Database::fetch("SELECT id FROM permissions WHERE slug = 'manage_schools'")['id'];
+$updatedPerms = array_merge($permIdList, [(int)$schoolPermId]);
+$resUpdate = testHttp('/superadmin/users/' . $adminId . '/update', $superCookie, 'POST', [
+    'name' => 'Alhaji Gambo Director',
+    'phone' => '08055667799',
+    'role' => 'finance_admin',
+    'school_id' => 0,
+    'is_active' => 1,
+    'permissions' => $updatedPerms
+]);
+assertAction($resUpdate['code'] === 302, "Super Admin updated administrator permissions -> redirected (HTTP 302)");
+$canManageSchoolsNow = \EduSphere\Core\Auth::can('manage_schools', $adminId);
+assertAction($canManageSchoolsNow, "Administrator now possesses updated custom permission ('manage_schools')");
+
+// 12. Super Admin: Omnipotent Execution Across Platform
+echo "\n12. Testing Super Admin Omnipotent Execution Across All Platform Roles & Permissions...\n";
+$superUser = Database::fetch("SELECT * FROM users WHERE role = 'super_admin' LIMIT 1");
+\EduSphere\Core\Auth::login($superUser);
+
+$superRoleCheck = \EduSphere\Core\Auth::hasRole('super_admin');
+$superCanSchoolAdmin = \EduSphere\Core\Auth::hasRole('school_admin');
+$superCanTeacher = \EduSphere\Core\Auth::hasRole('teacher');
+$superCanBursar = \EduSphere\Core\Auth::hasRole('bursar');
+$superCanSalesManager = \EduSphere\Core\Auth::hasRole('sales_manager');
+$superCanAnyPerm = \EduSphere\Core\Auth::can('any_arbitrary_platform_action');
+assertAction(
+    $superRoleCheck && $superCanSchoolAdmin && $superCanTeacher && $superCanBursar && $superCanSalesManager,
+    "Super Admin bypasses all role constraints and can execute any role's actions"
+);
+assertAction($superCanAnyPerm, "Super Admin possesses omnipotent root permission across all platform operations");
 
 // =================================================================
 echo "\n========================================================\n";

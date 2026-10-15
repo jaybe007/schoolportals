@@ -178,6 +178,13 @@ class RevenueSharingService
             'reference' => $ref,
         ]);
 
+        // Send instant automated payment confirmation notice to parent/guardian
+        try {
+            BillingCommunicationService::sendPaymentConfirmationNotice($paymentId);
+        } catch (\Throwable $e) {
+            // Non-blocking notification failure
+        }
+
         return [
             'payment_id' => $paymentId,
             'allocation_id' => $allocationId,

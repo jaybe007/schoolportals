@@ -47,6 +47,11 @@ class Database
         return $stmt->fetchAll();
     }
 
+    public static function fetchAll(string $sql, array $params = []): array
+    {
+        return self::query($sql, $params);
+    }
+
     public static function fetch(string $sql, array $params = []): ?array
     {
         $stmt = self::getConnection()->prepare($sql);
@@ -70,13 +75,18 @@ class Database
     public static function transaction(callable $callback)
     {
         $pdo = self::getConnection();
-        $pdo->beginTransaction();
+        $isNested = $pdo->inTransaction();
+        if (!$isNested) {
+            $pdo->beginTransaction();
+        }
         try {
             $result = $callback($pdo);
-            $pdo->commit();
+            if (!$isNested) {
+                $pdo->commit();
+            }
             return $result;
         } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) {
+            if (!$isNested && $pdo->inTransaction()) {
                 $pdo->rollBack();
             }
             throw $e;

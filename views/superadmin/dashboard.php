@@ -11,6 +11,20 @@
     </div>
 </div>
 
+<!-- New Commercial Model Banner -->
+<div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);">
+    <div>
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #93c5fd; font-weight: 700;">Default Commercial Model</div>
+        <h3 style="margin: 0.25rem 0 0.25rem 0; font-size: 1.25rem; font-weight: 800;">Per-Student Term Portal Fee & Revenue-Sharing Engine</h3>
+        <p style="margin: 0; font-size: 0.875rem; color: #bfdbfe; max-width: 650px;">
+            Replace fixed subscriptions with automated per-student term billing (₦3,000/student/term), 40% school incentives, 15% sales commissions, and verified platform collections.
+        </p>
+    </div>
+    <a href="<?= url('superadmin/portal-billing') ?>" class="btn btn-primary" style="background: #ffffff; color: #1e3a8a; font-weight: 700; border: none; white-space: nowrap; padding: 0.6rem 1.25rem;">
+        <span>Portal Billing & Revenue &rarr;</span>
+    </a>
+</div>
+
 <!-- Stats Grid -->
 <div class="stats-grid">
     <div class="stat-card">

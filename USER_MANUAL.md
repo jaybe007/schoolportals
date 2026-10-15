@@ -146,16 +146,37 @@ The Super Administrator portal manages the SaaS business, tenant schools, and se
 4. Click **Save Domain Mapping**. The platform maps the hostname to the tenant ID.
 
 ### Portal Billing & Revenue Management (Per-Student Term Model)
-1. Navigate to **Portal Billing & Revenue** (`/superadmin/portal-billing`).
-2. **Central Telemetry Dashboard:** View total eligible students, billed students, total invoiced, verified collections, collection rate (%), platform revenue (45%), school incentives accrued (40%), and sales commissions (15%).
-3. **Configuring Portal Pricing Policies:**
-   - Click **+ Configure Pricing Policy**.
-   - Input Policy Code (e.g. `TERM-FEE-2026`), Fee per student (default: `₦3,000.00`), Currency (`NGN`), and select Global Default or specific school scope.
-   - Click **Publish Pricing Policy**. Existing historical agreements remain intact.
-4. **Authorizing School Incentive Payouts:**
-   - In the Payout Requests table, review pending bank disbursement requests submitted by schools.
-   - Click **Approve & Disburse**, confirm bank details, enter NIP wire reference (e.g. `DISB-NIP-20261013-001`), and submit.
-   - The system automatically debits the school's ledger balance and updates transaction status.
+Navigate to **Portal Billing & Revenue** (`/superadmin/portal-billing`) to manage the platform's commercial operations:
+
+1. **Central Real-Time Telemetry Dashboard:**
+   - **Current Portal Fee:** Current standard default fee per student per academic term (₦3,000.00 / NGN).
+   - **Eligible Students vs Billed Students:** Real-time count of enrolled pupils across all school tenants versus active billed charges.
+   - **Invoiced & Verified Collections:** Total charges invoiced, total verified collections, platform collection rate (%), and outstanding parent balances.
+   - **Revenue-Sharing Allocations:** Retained SaaS platform revenue (45%), school incentives accrued (40%), sales partner commissions (15%), and processor gateway fees.
+   - **Reversals & Payouts:** Reconciled refunds/reversals, net distributable revenue, pending payout requests awaiting central approval, and completed disbursements.
+2. **Term-by-Term Financial Trends Table:**
+   - Real database historical breakdown by academic session and term showing students billed, total invoiced, verified collections, collection rate progress bars, and platform/school/rep financial slices.
+3. **School-by-School Collection Performance:**
+   - Multi-tenant roster showing enrolled cohort size, invoice count, invoiced amount, collections, outstanding due, accrued incentives, and agreement approval status.
+4. **Configurable Portal Pricing Policy Engine:**
+   - Click **+ Configure Pricing Policy** to configure global defaults or custom negotiated school overrides:
+     - Fee per student per term, currency (`NGN`), session, and term selectors.
+     - School-specific override scope (select specific tenant school for customized or discounted rates).
+     - Eligible school levels (Nursery, Primary, Secondary, Comprehensive) and student categories (Day, Boarding, All).
+     - Minimum fee floors and maximum fee caps.
+     - Fee payer model: **Billed to Parents** or **School-Sponsored** (free for parents).
+     - Tax calculation model: **Tax Inclusive** or **Tax Exclusive** with configurable tax rate (%).
+     - Discount & scholarship rules (e.g. sibling discounts, staff ward concessions).
+     - Approved exemptions and waivers (indigent pupil waivers).
+     - Effective and expiry dates.
+     - Status lifecycle: `Draft`, `Pending Approval`, `Approved`, `Active`, `Expired`, `Archived`.
+     - Explicit confirmation and authorization checkbox (prevents accidental publishing).
+     - **Historical Integrity Guard:** Modifying or adding pricing policies strictly preserves past terms and historical student invoices without silent rewriting.
+5. **School Incentive Disbursement Governance:**
+   - Review pending school incentive withdrawal requests, inspect bank settlement credentials (bank name, account number, account name), and click **Approve & Disburse** with an immutable central bank NIP session reference (e.g., `DISB-NIP-20261014-9999`).
+   - Symmetrical double-entry debit is posted to `school_incentive_ledger` in real time.
+6. **Real-Time Revenue Allocation Ledger:**
+   - Traceable penny-reconciled record of every verified portal collection, tracking gross paid, gateway fee, distributable net, platform share, school incentive, and sales rep commission.
 
 ### Inspecting NDPA 2023 Audit Trails
 1. Navigate to **Audit Logs** (`/superadmin/audit-logs`).
@@ -372,7 +393,75 @@ Manage school tuition fees, billing, and reconciliations in `/school/finance`.
 
 ---
 
-## 12. Institutional Notice Board Management
+## 12. Term Portal Fee Management (School Administration Console)
+
+The **Term Portal Fee** desk (`/school/term-portal-fee`) allows authorized school administrators to manage their term agreement, preview and generate parent invoices, track collections, apply scholarships/waivers, and manage incentive balances without paying large fixed platform subscriptions from the school's operating budget.
+
+### 1. Reviewing & Authorizing Term Fee Arrangements
+1. Navigate to **Term Portal Fee** (`/school/term-portal-fee`).
+2. Review the proposed fee per student, eligible enrolled student count, estimated term bill, and the school's agreed incentive percentage (e.g., **40.0%**).
+3. **Agreement Actions:**
+   - **Accept & Authorize:** Confirms adoption of the rate and authorizes invoice generation for enrolled pupils.
+   - **Request Clarification / Rate Adjustment:** Submits formal queries or notes to central platform administrators regarding rate amendments or student category exclusions.
+   - **Reject Rate:** Declines proposed terms with mandatory justification.
+
+### 2. Previewing Parent Invoices & Broadcast Announcements
+- Click **Preview Parent Invoice** to inspect the authentic student portal bill (featuring school letterhead, student details, term breakdown, and payment instructions) before generating live charges.
+- Click **Notify Parents** to preview and broadcast official announcements to parents via the portal.
+
+### 3. Student Eligibility & Idempotent Term Billing Engine
+1. Click **Generate Student Invoices** (`/school/term-portal-fee/generate`).
+2. **Autonomous Term & Session Identification:** The engine automatically detects the school's active session and term if not explicitly supplied.
+3. **Approved Fee Agreement Retrieval:** Validates that the school has accepted the term fee arrangement before generating student charges.
+4. **Configurable Billing Rules Evaluated:**
+   - **Enrolled Students:** Invoices are automatically generated for all currently active pupils (`status = 'enrolled'`).
+   - **Sibling & Family Discounts:** Evaluates multiple children sharing the same primary guardian account. Subsequent siblings (2nd, 3rd+ child) automatically receive approved family discounts (e.g., 10% reduction), recorded directly on the invoice.
+   - **Approved Scholarships & Authorized Exemptions:** Students with documented bursary waivers or indigent exemptions are billed with approved waiver discounts or marked `waived` with recorded justification.
+   - **New Admissions & Mid-Term Enrollment:** Re-running the engine during the term automatically bills new admissions with appropriate term proration rules.
+   - **Multiple Guardians & Access Privacy:** Associates the invoice with the pupil's primary guardian while enforcing anti-IDOR boundaries so only authorized family accounts can view the records.
+   - **Graduated, Transferred, or Withdrawn Students:** Excluded from billing automatically.
+   - **Zero Duplicate Billing (Idempotency):** The engine computes a cryptographic hash (`hash('sha256', "{school}:{session}:{term}:{student}")`) alongside the database constraint `UNIQUE KEY uq_portal_inv_term_student`. Re-running the generation process is 100% idempotent: already-billed students are safely skipped without double-charging.
+5. **School-Level Billing Summary:** Generates a real-time financial telemetry report showing total eligible students, gross charges, discounts applied, and net balance due.
+6. **Authorized Adjustments & Corrections:** School accounts staff can click **Adjust/Waive** on any student invoice to apply legitimate corrections, bursary credits, or refund adjustments with full audit logs.
+
+### 4. Tracking Invoices & Payment Reminders
+1. **Filter Tabs:** Filter student invoices by status: *All*, *Paid*, *Partial*, *Unpaid*, *Waived*, *Overdue*, and *Disputed*.
+2. Overdue invoices (past due date with positive balance due) are prominently tagged with urgency badges.
+3. **Batch Payment Reminders:** Click **Send Reminders** to automatically dispatch polite circular notifications to parents of all pupils with unsettled balances.
+4. **CSV Export:** Click **Export CSV Report** (`/school/term-portal-fee/export`) to download complete billing telemetry for school auditing.
+
+### 5. Parent & Guardian Billing Portal (`/portal/parent`)
+1. **Multi-Ward Family Overview:**
+   - Parents see all their linked children in one place with individual and consolidated family balance summaries.
+   - Anti-IDOR enforcement ensures parents can only view their own authorized wards and charges.
+2. **School-Approved Notice & Explanation Banner:**
+   - Displays clear, non-misleading explanations of the portal maintenance fee and what services it enables (continuous assessment cloud sync, automated marksheet generation, digital report cards, teacher messaging).
+   - Shows active official notices published by the school administration.
+   - Includes a **Payment & Refund Policy** modal explaining partial payment options, pending transaction rules, dispute workflows, and 5-7 business day refund guidelines.
+3. **Consolidated Multi-Ward Family Statement (PDF):**
+   - Parents can click **Download Consolidated Statement (PDF)** (`/portal/parent/statement/pdf`) to generate an A4 summary of all wards' invoices, payments, and balances.
+4. **Consolidated Pay All (One-Click Multi-Child Settlement):**
+   - Parents with multiple children can settle their combined family balance in a single transaction via Paystack or direct bank transfer.
+   - The engine automatically distributes the payment funds to each child's individual invoice, updating statuses and generating verified receipts for each ward.
+5. **Permitted Partial Payments:**
+   - Parents can pay any custom amount between ₦500 and the full balance due to reduce their outstanding balance in manageable instalments.
+6. **Billing Inquiries & Disputes:**
+   - Parents can click **Dispute** on any invoice to submit an official clarification request (e.g. for unapplied scholarships or fee corrections) directly to the school bursary desk.
+7. **Verified Payment Receipts & History:**
+   - Permanent access to download and print tamper-proof official PDF payment receipts.
+
+### 6. Managing School Incentives & Payout Requests
+1. Navigate to **School Incentives** (`/school/incentives`) or view the incentive balance on the term fee overview.
+2. The ledger tracks every 40% incentive accrued in real time upon verified parent payments.
+3. **Requesting Bank Payout:**
+   - Click **Request Incentive Payout**.
+   - Input requested amount (validated against available withdrawable balance).
+   - Enter school commercial bank name, NUBAN account number, and verified account name.
+   - Once submitted, central platform administrators review and disburse funds via bank wire.
+
+---
+
+## 13. Institutional Notice Board Management
 
 The **School Notice Board** (`/school/notices`) provides a centralized circular and announcement dispatch system with audience targeting, priority visual alerts, and automated feed integration.
 
@@ -528,12 +617,12 @@ C:\xampp\php\php.exe tests/test_all_endpoints.php
 ```
 *Expected Result:* `AUDIT SUCCESS: All 26 endpoints returned HTTP 200 OK without errors!`
 
-### 4. Per-Student Term Portal Billing & Revenue Sharing Engine Suite
-Tests cryptographic SHA-256 idempotency deduplication, parent payment allocation, exact penny reconciliation, school incentive payout approvals, withdrawable balance protections, and anti-collusion commission barriers:
+### 4. Per-Student Term Portal Billing, Gateway Reconciliation & Communication Engine Suite
+Tests cryptographic SHA-256 idempotency deduplication, Paystack webhook HMAC verification, gateway settlement reconciliation, authorized refund reversals, itemized invoice line items, school billing notices, anti-IDOR reminders, and user roles:
 ```bash
 C:\xampp\php\php.exe tests/test_portal_billing.php
 ```
-*Expected Result:* `PORTAL BILLING TEST RESULTS: 30 PASSED, 0 FAILED`
+*Expected Result:* `PORTAL BILLING & GATEWAY TEST RESULTS: 63 PASSED, 0 FAILED`
 
 ### 5. Institutional Notices, Direct Messaging & Student Fee Payments Suite
 Tests notice board audience filtering, 2-way threaded parent-school messaging, student online tuition payment via Paystack, per-student portal access fee settlement, and anti-IDOR payment isolation:
@@ -544,5 +633,157 @@ C:\xampp\php\php.exe tests/test_notices_and_messaging.php
 
 ---
 
+## 19. Payment Gateway & Collection Reconciliation
+
+EduSphere integrates seamlessly with payment gateways (such as **Paystack**) for multi-tenant portal fee collection:
+
+1. **Cryptographically Unique References:**
+   - Every invoice payment reference is uniquely generated (`PAY-PTL-YYYYMMDDHHIISS-XXXX`).
+2. **Server-Side Verification & Webhook Authentication:**
+   - Never trusts browser redirects or screenshots as proof of payment.
+   - Webhook payloads are verified using zero-trust `HMAC-SHA512` signature validation against the secret key.
+   - Raw webhook payloads are archived in `payment_gateway_events` with IP address and processed status.
+3. **Idempotent Payment Processing:**
+   - Duplicate webhook deliveries or duplicate payment submissions are prevented from triggering double receipts or duplicate revenue distribution.
+4. **Gateway Settlement Reconciliation:**
+   - Financial administrators can reconcile third-party gateway payouts against internal verified records for any date range via `/superadmin/portal-billing`.
+   - The reconciliation engine compares gross collections, gateway processing fees (e.g. 1.5%), and net settlement payouts, flagging fee variances or timing discrepancies.
+   - Discrepancies can be marked as manually resolved with mandatory audit justification notes.
+5. **Authorized Refunds & Symmetrical Reversals:**
+   - Parents or school administrators can submit refund requests.
+   - Central Super Admin or Finance Admin reviews and approves refunds.
+   - Approved refunds initiate gateway payouts and symmetrically debit school incentive ledgers, reverse sales rep commissions, and restore student invoice balances.
+
+---
+
+## 20. School Communication & Billing Notices Engine
+
+A dedicated communication workflow allows schools to notify parents before portal fees become due (`/school/billing-notices`):
+
+1. **8 Pre-Configured Lifecycle Templates:**
+   - **Term Portal Fee Announcement:** Official term fee notice with purpose, fee breakdown, due date, and bursary contacts.
+   - **Individual Student Invoice Notification:** Personalized ward invoice issuance notice.
+   - **Payment Due Reminder:** Friendly reminder of pending balance due.
+   - **Successful Payment Confirmation:** Instant electronic payment acknowledgment with reference.
+   - **Outstanding Balance Notice:** Overdue payment alert.
+   - **Refund Confirmation:** Official notice of approved refund and gateway credit.
+   - **Billing Correction Notice:** Notice of authorized fee adjustment or scholarship waiver.
+   - **Term Closure & New-Term Billing:** Academic term conclusion and upcoming session preview.
+2. **Review & Approval Workflow:**
+   - School administrators must review and approve announcement content before broadcasting to parent portals.
+3. **Anti-IDOR & Privacy Guard:**
+   - Each parent strictly receives notifications detailing only their own wards. No parent can ever inspect another student's fees.
+4. **24-Hour Anti-Spam Cool-Down:**
+   - Batch reminder engine automatically skips parents who have received a notification within the last 24 hours.
+5. **Delivery Telemetry & Retry Handling:**
+   - Complete audit trail of dispatched messages, channel (email, SMS, portal notice), delivery status, and one-click retry for failed deliveries.
+
+---
+
+## 21. User Roles & Least-Privilege Access Control Matrix
+
+| Role | Portal Endpoint | Permitted Capabilities & Access Boundaries |
+| :--- | :--- | :--- |
+| **Platform Super Admin** | `/superadmin` | Platform-wide financial reporting, pricing policies, revenue sharing policies, bank payout approvals, gateway settlement reconciliation, and refund authorizations. |
+| **Platform Finance Admin** | `/superadmin` | Financial telemetry, settlement reconciliation, dispute investigation, and payout execution. |
+| **Platform Sales Manager** | `/sales` | Commercial pipeline oversight, sales rep onboarding, commission approvals, and dispute management. |
+| **Sales Representative** | `/sales` | Attributed schools portfolio, student billing telemetry, commission earning tracking (terms 1–3 initial vs terms 4+ recurring). Strictly blocked from self-approving commissions. |
+| **School Administrator / Owner** | `/school` | School student enrollment, fee agreement review/clarification, invoice generation, billing notices broadcasting, batch reminders, and bank payout requests. |
+| **School Bursar** | `/school/finance` | Invoice management, bursary receipts, fee adjustments, and school incentive ledger inspection. |
+| **Teacher** | `/school` | Attendance marking, continuous assessment, exam marks entry. Blocked from school financial ledgers. |
+| **Parent / Guardian** | `/portal/parent` | Multi-ward report cards, portal invoices, consolidated family payments, downloadable official PDF receipts, dispute filing, and refund requests. Strictly scoped to authorized wards. |
+| **Student** | `/portal/student` | Personal terminal report card, attendance summary, and online tuition/portal fee payment. |
+
+---
+
+## 22. Testing & Acceptance Criteria Verification
+
+The EduSphere Commercial, Billing, Payment Gateway, and Reconciliation Engine includes comprehensive automated testing verifying all 20 acceptance criteria across multiple demo schools, students, parents, sales representatives, and academic terms:
+
+| # | Acceptance Criterion | Test Verification Method | Status |
+| :--- | :--- | :--- | :--- |
+| **1** | Setting and approving a portal fee | `PortalBillingService::getOrCreateAgreement()` accepts agreement with proposed fee | **Verified (PASS)** |
+| **2** | Applying a different approved fee to a specific school | School 1 (Apex) takes default ₦3,000; School 2 (Horizon) takes negotiated ₦2,500 override (`HORIZON-SPECIAL-2025`) | **Verified (PASS)** |
+| **3** | Calculating eligible students for a term | Active enrollment engine identifies all active enrolled students per session and term | **Verified (PASS)** |
+| **4** | Generating one correct invoice per eligible student | Invoice generated with unique student mapping, session/term association, and due date | **Verified (PASS)** |
+| **5** | Preventing duplicate invoice generation | Unique DB constraint `uq_portal_inv_term_student` and deterministic hash check skips already invoiced students | **Verified (PASS)** |
+| **6** | Displaying invoices to the correct parents | Anti-IDOR parent scoping restricts invoice visibility strictly to linked wards | **Verified (PASS)** |
+| **7** | Recording a verified payment | Server-side trusted gateway validation records transaction reference and settles balance | **Verified (PASS)** |
+| **8** | Rejecting invalid or duplicate payment notifications | Unique constraint `uq_portal_pmt_ref` and HMAC-SHA512 webhook signature verification prevent duplicate charges | **Verified (PASS)** |
+| **9** | Calculating allocations according to applicable policy | Policy engine calculates gross, gateway fees, net distributable, platform share, school incentive, and rep commission | **Verified (PASS)** |
+| **10** | Ensuring all allocations reconcile | Exact penny reconciliation check asserts `Distributable ≡ Platform + School + Rep` with zero rounding leakage | **Verified (PASS)** |
+| **11** | Calculating school incentives accurately | 40% incentive posted to append-only `school_incentive_ledger` with real-time balance tracking | **Verified (PASS)** |
+| **12** | Calculating initial and recurring sales commissions | Terms 1–3 initial acquisition rate (15%) and terms 4+ recurring renewal rate (7.5%) verified | **Verified (PASS)** |
+| **13** | Preventing unauthorized commission changes and approvals | Compliance Engine strictly prevents Sales Reps from approving or modifying their own commissions | **Verified (PASS)** |
+| **14** | Handling partial payments and outstanding balances | Partial payment of ₦1,500 updates invoice to `partially_paid` with accurate remaining balance due | **Verified (PASS)** |
+| **15** | Processing refunds, reversals, and commission adjustments | Double-entry refund engine restores invoice balance and debits school/rep ledgers symmetrically | **Verified (PASS)** |
+| **16** | Generating accurate school and platform financial reports | Central Super Admin telemetry aggregates billed, collected, outstanding, and incentive totals across all schools | **Verified (PASS)** |
+| **17** | Preventing cross-tenant data access | Multi-tenant tenant boundary checks block cross-school attendance, report cards, and fee invoices (HTTP 403) | **Verified (PASS)** |
+| **18** | Preserving historical invoices & agreements on pricing changes | Updating default pricing policies does NOT mutate past generated invoices, accepted agreements, or ledger entries | **Verified (PASS)** |
+| **19** | Recording payout requests and verified payout completion | School payout requests validate withdrawable balances and log bank disbursement wire references | **Verified (PASS)** |
+| **20** | Testing billing notifications and delivery failures | Multi-channel dispatch (email, SMS, portal notice), 24h anti-spam cool-down, failure logging, and retry handler verified | **Verified (PASS)** |
+
+### Running the Acceptance Test Suites
+
+Run all tests via PowerShell / CLI:
+```bash
+# Execute Full Comprehensive Portal Billing & Reconciliation Test Suite (37 Criteria, 72 Assertions)
+c:\xampp\php\php.exe tests/test_portal_billing.php
+
+# Execute Master Suite Runner (All 8 Core Suites: Isolation, Billing, Webhooks, PDFs, Workflows, CRUD)
+c:\xampp\php\php.exe tests/run_all_tests.php
+
+# Execute Codebase Health & CSRF Security Audit (14 Audit Scans)
+c:\xampp\php\php.exe tests/codebase_health_check.php
+```
+
+---
+
+## 21. Super Admin Administrator Management, Role & Permission Engine
+
+EduSphere SaaS equips the platform **Super Admin** with universal, omnipotent execution authority across every module, route, and tenant school on the platform, alongside a granular Role-Based Access Control (RBAC) and Custom Permission Assignment engine.
+
+### 1. Super Admin Omnipotent Execution Authority
+- **Zero Route or Action Restrictions:** The Super Admin (`super_admin` role) possesses absolute root privileges. Whenever a route or action invokes `Auth::hasRole(...)` or `Auth::can(...)`, the security layer automatically grants pass-through clearance (`return true`).
+- **Cross-Tenant Oversight:** Super Admins can inspect and execute administrative tasks on behalf of any school, review financial ledgers, configure pricing agreements, authorize bank payouts, and audit system activities without being restricted by tenant isolation boundaries.
+- **Root Security Barrier:** While non-superadmin roles are strictly scoped by least-privilege policies, the Super Admin can intervene across all platform operations to ensure system stability and business continuity.
+
+### 2. Creating New Platform Administrators
+Super Admins can create administrative personnel and delegate specific responsibilities:
+1. Navigate to **User Management** in the Super Admin sidebar (`/superadmin/users`).
+2. Click the **+ Create Administrator** button at the top-right of the dashboard.
+3. In the modal, enter:
+   - **Full Name** (e.g., `Adeola Balogun`)
+   - **Email Address** (must be unique across the platform)
+   - **Phone Number** (e.g., `08031234567`)
+   - **Password** (minimum 8 characters, securely hashed with password_hash)
+   - **Administrative Role:** Select from `Finance Admin`, `Sales Manager`, `School Owner`, `School Admin`, `Bursar`, `Teacher`, or `Super Admin`.
+   - **Assigned School Scope (Optional):** Assign to a specific tenant school (e.g., *Apex Crown College*) or leave empty for platform-wide administrative roles.
+4. **Granular Permission Checkboxes:**
+   - Selecting a role automatically highlights and checks that role's recommended standard permissions.
+   - The Super Admin can dynamically grant additional granular permissions across 5 distinct categories:
+     - **Platform Governance:** `manage_platform`, `manage_schools`, `manage_plans`, `view_audit_logs`.
+     - **Finance & Reconciliation:** `manage_billing`, `reconcile_payments`, `approve_payouts`, `process_refunds`.
+     - **Sales & CRM:** `manage_reps`, `approve_commissions`, `view_sales_telemetry`, `manage_leads`.
+     - **School Academics:** `manage_academics`, `enroll_students`, `publish_results`, `manage_staff`.
+     - **Communication & System:** `broadcast_notices`, `send_messages`, `view_reports`, `manage_system_settings`.
+5. Click **Create Administrator & Save Permissions**. The account is created, default and custom permissions are committed in a database transaction, and an immutable entry is logged in `audit_logs`.
+
+### 3. Modifying Administrator Roles & Updating Permissions
+1. On the `/superadmin/users` directory, locate the administrator.
+2. Click **Edit Role & Perms**.
+3. The edit modal loads their existing details, assigned role, and currently active granular permissions.
+4. Update the administrator's role, change their school assignment, or toggle individual permission checkboxes.
+5. If necessary, provide a new password to execute an immediate credential reset.
+6. Click **Update Administrator & Permissions**. The changes take effect immediately across all active sessions.
+
+### 4. Account Status & Quick Suspension Safeguards
+- **Toggle Status:** Super Admins can instantly suspend or reactivate any administrator with a single click using the **Suspend / Activate** action button.
+- **Anti-Lockout Protection:** The platform enforces strict self-protection rules preventing a Super Admin from suspending their own active account or stripping their own root privileges.
+- **CSRF & Audit Protection:** Every user status modification, role change, and permission grant requires a valid CSRF token (`<?= csrf_field() ?>`) and generates an NDPA 2023 compliant audit event.
+
+---
+
 *EduSphere SaaS &mdash; Next-Generation Multi-Tenant School Administration Engine*
+
 

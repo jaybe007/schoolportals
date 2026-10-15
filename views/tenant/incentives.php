@@ -4,6 +4,10 @@
         <p class="page-subtitle">Track accrued school incentives from portal fee collections and manage bank disbursements</p>
     </div>
     <div style="display: flex; gap: 0.75rem;">
+        <a href="<?= url('school/incentives/export') ?>" class="btn btn-outline" title="Download Complete Double-Entry Ledger CSV">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export Ledger (CSV)</span>
+        </a>
         <button class="btn btn-primary" onclick="openModal('requestPayoutModal')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
             <span>Request Bank Payout</span>
@@ -65,6 +69,44 @@
         </div>
     </div>
 </div>
+
+<!-- Term-by-Term Incentive Performance Breakdown -->
+<?php if (!empty($termPerformance)): ?>
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">Term-by-Term Incentive Performance</h3>
+            <p class="card-subtitle">Historical term collections and school incentive accruals</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Academic Session & Term</th>
+                    <th>Invoices Billed</th>
+                    <th>Invoices Paid</th>
+                    <th>Total Collections</th>
+                    <th>School Agreed Share</th>
+                    <th>Incentive Accrued</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($termPerformance as $tp): ?>
+                <tr>
+                    <td><strong><?= e($tp['session_name']) ?> &bull; <?= e($tp['term_name']) ?></strong></td>
+                    <td><?= (int)$tp['total_invoices'] ?> pupils</td>
+                    <td><span class="badge badge-success"><?= (int)$tp['paid_invoices'] ?> Settled</span></td>
+                    <td style="font-weight: 700; color: #1e3a8a;"><?= money((float)$tp['total_collected']) ?></td>
+                    <td><span class="badge badge-info">40.0% Allocation</span></td>
+                    <td style="font-weight: 700; color: #059669; font-size: 1rem;"><?= money((float)$tp['accrued_incentive']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Bank Payout Requests Table -->
 <div class="card" style="margin-top: 1.5rem;">

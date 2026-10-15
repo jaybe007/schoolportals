@@ -45,7 +45,7 @@ $apexId = (int)$resolvedSchool['id'];
 
 // 3. User Accounts for All 10 Roles
 $rolesCount = (int)Database::fetch("SELECT COUNT(DISTINCT role) AS c FROM users")['c'];
-assertTest("3. All 10 distinct user roles configured across platform (distinct roles: {$rolesCount})", $rolesCount === 10);
+assertTest("3. Standard and extended user roles configured across platform (distinct roles: {$rolesCount})", $rolesCount >= 10);
 
 // 4. Grading Formula and Letter Grade Calculation
 $totalScore = GradingService::calculateTotal(18.5, 19.0, 54.0);

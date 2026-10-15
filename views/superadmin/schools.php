@@ -122,6 +122,21 @@
                     </select>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">Attributed Sales Partner / Representative (Optional)</label>
+                    <select name="attributed_rep_id" class="form-select">
+                        <option value="0">-- Direct Platform Acquisition (No Representative) --</option>
+                        <?php foreach (($salesReps ?? []) as $rep): ?>
+                            <option value="<?= $rep['id'] ?>">
+                                <?= e($rep['name']) ?> (<?= e($rep['rep_code']) ?> &mdash; <?= e($rep['territory']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small style="color: #64748b; font-size: 0.75rem; display: block; margin-top: 0.35rem;">
+                        Linking a sales partner enables automated commission allocations (15% initial / 7.5% recurring) only when genuine student portal fees are collected.
+                    </small>
+                </div>
+
                 <div style="font-weight: 700; font-size: 0.875rem; color: #1e3a8a; margin: 1rem 0 0.5rem; border-top: 1px solid #e2e8f0; padding-top: 0.75rem;">
                     Initial School Administrator Account
                 </div>

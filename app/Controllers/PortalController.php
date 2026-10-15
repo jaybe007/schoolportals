@@ -243,6 +243,21 @@ class PortalController
             [$userId, $parent['id']]
         );
 
+        $familyPortalTotal = 0.0;
+        $familyPortalPaid = 0.0;
+        $familyPortalBalance = 0.0;
+        foreach ($portalInvoices as $pi) {
+            $familyPortalTotal += (float)$pi['amount_due'];
+            $familyPortalPaid += (float)$pi['paid_amount'];
+            $familyPortalBalance += (float)$pi['balance_due'];
+        }
+        $familySummary = [
+            'total_invoiced' => $familyPortalTotal,
+            'total_paid' => $familyPortalPaid,
+            'balance_due' => $familyPortalBalance,
+            'unsettled_count' => count(array_filter($portalInvoices, fn($i) => (float)$i['balance_due'] > 0)),
+        ];
+
         View::render('portal.parent', [
             'title' => 'Parent Portal - Family Dashboard',
             'parent' => $parent,
@@ -261,7 +276,58 @@ class PortalController
             'unreadMessagesCount' => $unreadMessagesCount,
             'staffMembers' => $staffMembers,
             'threads' => $threads,
+            'familySummary' => $familySummary,
         ], 'portal');
+    }
+
+    public function downloadConsolidatedFamilyStatement(Request $request): void
+    {
+        $userId = Auth::id();
+        $parent = Database::fetch("SELECT * FROM parents WHERE user_id = ?", [$userId]);
+        if (!$parent) {
+            http_response_code(403);
+            die("Access Forbidden: Parent profile not found.");
+        }
+
+        try {
+            $dompdf = FinancialPdfService::generateConsolidatedFamilyStatementPdf((int)$parent['school_id'], (int)$parent['id']);
+            $dompdf->stream("Consolidated_Family_Statement_P{$parent['id']}.pdf", ['Attachment' => false]);
+            exit;
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            die("Statement generation error: " . htmlspecialchars($e->getMessage()));
+        }
+    }
+
+    public function payConsolidatedPortalInvoices(Request $request): void
+    {
+        $userId = Auth::id();
+        $parent = Database::fetch("SELECT * FROM parents WHERE user_id = ?", [$userId]);
+        $user = Database::fetch("SELECT * FROM users WHERE id = ?", [$userId]);
+        if (!$parent) {
+            http_response_code(403);
+            die("Access Forbidden: Parent profile not found.");
+        }
+
+        $amount = (float)$request->post('amount', 0.0);
+        $gateway = (string)$request->post('gateway', 'paystack');
+
+        try {
+            $res = \EduSphere\Services\PortalBillingService::payConsolidatedInvoices(
+                (int)$parent['school_id'],
+                (int)$parent['id'],
+                $amount,
+                $gateway,
+                $user['name'] ?? 'Parent',
+                $user['email'] ?? null,
+                $userId
+            );
+
+            $invoicesCredited = count($res['allocations']);
+            Response::redirect('/portal/parent', "Consolidated payment of " . money($res['total_allocated']) . " verified and allocated across {$invoicesCredited} child invoice(s) successfully!", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/portal/parent', $e->getMessage(), 'danger');
+        }
     }
 
     public function payStudentFee(Request $request): void
@@ -317,6 +383,68 @@ class PortalController
         });
 
         Response::redirect('/portal/student', "Payment of " . money($amount) . " verified successfully! Receipt: {$receiptNo}", 'success');
+    }
+
+    public function payWardSchoolFee(Request $request): void
+    {
+        $userId = Auth::id();
+        $parent = Database::fetch("SELECT * FROM parents WHERE user_id = ?", [$userId]);
+        if (!$parent) {
+            http_response_code(403);
+            die("Access Forbidden: Only registered parents can access this endpoint.");
+        }
+
+        $invoiceId = (int)$request->post('invoice_id', 0);
+        $amount = (float)$request->post('amount', 0.0);
+
+        $inv = Database::fetch("SELECT * FROM fee_invoices WHERE id = ?", [$invoiceId]);
+        if (!$inv) {
+            Response::redirect('/portal/parent', 'Invoice record not found.', 'danger');
+        }
+
+        // Anti-IDOR check: verify ward belongs to parent
+        $student = Database::fetch("SELECT * FROM students WHERE id = ? AND parent_id = ?", [(int)$inv['student_id'], $parent['id']]);
+        if (!$student) {
+            http_response_code(403);
+            die("Access Forbidden: You cannot pay invoices for students not linked to your family account.");
+        }
+
+        if ($inv['status'] === 'paid') {
+            Response::redirect('/portal/parent', 'This invoice has already been fully settled.', 'info');
+        }
+
+        $balanceDue = (float)$inv['balance_due'];
+        if ($amount <= 0 || $amount > $balanceDue + 0.01) {
+            $amount = $balanceDue;
+        }
+
+        $receiptNo = sprintf('REC-%s-%04d', date('Y'), rand(1000, 9999));
+        $ref = 'PAY-PARENT-' . date('Ymd') . '-' . rand(10000, 99999);
+
+        Database::transaction(function() use ($inv, $amount, $receiptNo, $ref, $student, $userId) {
+            Database::execute(
+                "INSERT INTO payment_receipts (school_id, receipt_number, invoice_id, student_id, amount_paid, payment_method, payment_reference, transaction_id, payment_date, status, verified_by)
+                 VALUES (?, ?, ?, ?, ?, 'paystack', ?, ?, CURDATE(), 'verified', ?)",
+                [(int)$inv['school_id'], $receiptNo, $inv['id'], $student['id'], $amount, $ref, 'TXN_' . rand(100000, 999999), $userId]
+            );
+
+            $newPaid = (float)$inv['paid_amount'] + $amount;
+            $newBalance = max(0.0, (float)$inv['total_amount'] - $newPaid);
+            $newStatus = $newBalance <= 0.0 ? 'paid' : 'partially_paid';
+
+            Database::execute(
+                "UPDATE fee_invoices SET paid_amount = ?, balance_due = ?, status = ?, updated_at = NOW() WHERE id = ?",
+                [$newPaid, $newBalance, $newStatus, $inv['id']]
+            );
+
+            \EduSphere\Core\AuditLogger::log('parent_ward_fee_paid', 'fee_invoices', $inv['id'], [
+                'receipt_number' => $receiptNo,
+                'amount' => $amount,
+                'student_id' => $student['id'],
+            ]);
+        });
+
+        Response::redirect('/portal/parent', "Payment of " . money($amount) . " verified successfully! Official receipt: {$receiptNo}", 'success');
     }
 
     public function payStudentPortalFee(Request $request): void
@@ -741,6 +869,43 @@ class PortalController
         } catch (\Throwable $e) {
             http_response_code(404);
             die(htmlspecialchars($e->getMessage()));
+        }
+    }
+
+    public function requestPortalRefund(Request $request): void
+    {
+        $userId = Auth::id();
+        $parent = Database::fetch("SELECT * FROM parents WHERE user_id = ?", [$userId]);
+        if (!$parent) {
+            http_response_code(403);
+            die("Access Forbidden: Only registered parents can submit refund requests.");
+        }
+
+        $paymentId = (int)$request->post('payment_id', 0);
+        $amount = (float)$request->post('amount', 0.0);
+        $reason = trim((string)$request->post('reason', ''));
+
+        if (empty($reason)) {
+            Response::redirect('/portal/parent', 'A valid reason is required for requesting a refund.', 'danger');
+        }
+
+        $payment = Database::fetch("SELECT * FROM portal_payments WHERE id = ?", [$paymentId]);
+        if (!$payment || !$this->canAccessStudent((int)$payment['student_id'])) {
+            http_response_code(403);
+            die("Access Forbidden: Payment transaction not found or does not belong to your family account.");
+        }
+
+        try {
+            $refundId = \EduSphere\Services\RefundManagementService::requestRefund(
+                $paymentId,
+                $amount > 0 ? $amount : (float)$payment['amount'],
+                $reason,
+                $userId
+            );
+
+            Response::redirect('/portal/parent', "Refund request #{$refundId} submitted successfully! Our finance compliance team will review and process your request.", 'success');
+        } catch (\Throwable $e) {
+            Response::redirect('/portal/parent', $e->getMessage(), 'danger');
         }
     }
 }
