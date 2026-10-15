@@ -11,6 +11,7 @@ use EduSphere\Core\View;
 use EduSphere\Core\AuditLogger;
 use EduSphere\Core\Validator;
 use EduSphere\Core\Auth;
+use EduSphere\Services\PortalBillingService;
 
 class SuperAdminController
 {
@@ -81,6 +82,7 @@ class SuperAdminController
     {
         $schools = Database::query(
             "SELECT s.*, p.name AS plan_name,
+                (SELECT proposed_fee_per_student FROM school_portal_fee_agreements WHERE school_id = s.id ORDER BY id DESC LIMIT 1) AS active_portal_fee,
                 (SELECT domain FROM tenant_domains WHERE school_id = s.id AND is_primary = 1 LIMIT 1) AS primary_domain,
                 (SELECT COUNT(*) FROM students WHERE school_id = s.id) AS student_count
              FROM schools s
@@ -121,7 +123,10 @@ class SuperAdminController
         $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $name), '-'));
         $email = trim((string)$request->post('email', ''));
         $phone = trim((string)$request->post('phone', ''));
-        $planId = (int)$request->post('plan_id', 1);
+        $portalFee = (float)$request->post('portal_fee', 3000.00);
+        if ($portalFee <= 0) {
+            $portalFee = 3000.00;
+        }
         $schoolType = (string)$request->post('school_type', 'combined');
         $adminName = trim((string)$request->post('admin_name', ''));
         $adminEmail = trim((string)$request->post('admin_email', ''));
@@ -146,14 +151,14 @@ class SuperAdminController
         );
 
         Database::transaction(function($pdo) use (
-            $uuid, $code, $name, $slug, $schoolType, $email, $phone, $planId,
+            $uuid, $code, $name, $slug, $schoolType, $email, $phone, $portalFee,
             $adminName, $adminEmail, $attributedLeadId, $attributedRepId
         ) {
-            // 1. Insert School
+            // 1. Insert School (current_plan_id is NULL under the per-student portal fee commercial model)
             Database::execute(
                 "INSERT INTO schools (uuid, code, name, slug, motto, school_type, email, phone, current_plan_id, status, subscription_status, subscription_expires_at)
-                 VALUES (?, ?, ?, ?, 'Knowledge and Integrity', ?, ?, ?, ?, 'active', 'active', DATE_ADD(CURDATE(), INTERVAL 1 YEAR))",
-                [$uuid, $code, $name, $slug, $schoolType, $email, $phone, $planId]
+                 VALUES (?, ?, ?, ?, 'Knowledge and Integrity', ?, ?, ?, NULL, 'active', 'active', DATE_ADD(CURDATE(), INTERVAL 1 YEAR))",
+                [$uuid, $code, $name, $slug, $schoolType, $email, $phone]
             );
             $schoolId = (int)Database::lastInsertId();
 
@@ -185,6 +190,17 @@ class SuperAdminController
                 "INSERT INTO academic_terms (school_id, session_id, name, start_date, end_date, is_current)
                  VALUES (?, ?, 'First Term', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 3 MONTH), 1)",
                 [$schoolId, $sessionId]
+            );
+            $termId = (int)Database::lastInsertId();
+
+            // 4b. Initialize Per-Student Term Portal Fee Agreement
+            $pricing = PortalBillingService::getEffectivePricing($schoolId, $sessionId, $termId);
+            $revPolicy = PortalBillingService::getRevenueSharingPolicy($schoolId);
+            Database::execute(
+                "INSERT INTO school_portal_fee_agreements
+                 (school_id, session_id, term_id, pricing_policy_id, revenue_policy_id, proposed_fee_per_student, estimated_eligible_students, status)
+                 VALUES (?, ?, ?, ?, ?, ?, 0, 'proposed')",
+                [$schoolId, $sessionId, $termId, $pricing['id'], $revPolicy['id'], $portalFee]
             );
 
             // 5. Default CMS Page

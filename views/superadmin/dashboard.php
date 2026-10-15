@@ -269,12 +269,12 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Subscription Tier</label>
-                        <select name="plan_id" class="form-select">
-                            <option value="2">Premium Enterprise (₦600k/yr)</option>
-                            <option value="1">Standard Plan (₦250k/yr)</option>
-                            <option value="3">Multi-Campus Apex (₦1.2m/yr)</option>
-                        </select>
+                        <label class="form-label">Commercial Model</label>
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 0.65rem 0.85rem; font-size: 0.8125rem; color: #166534; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                            <span>Per-Student Term Fee</span>
+                            <span style="font-size: 0.75rem; background: #dcfce7; padding: 2px 8px; border-radius: 4px; border: 1px solid #86efac; color: #15803d;">₦3,000 / student</span>
+                        </div>
+                        <input type="hidden" name="portal_fee" value="3000">
                     </div>
                 </div>
                 <div style="background: #f8fafc; padding: 1rem; border-radius: var(--radius-md); margin-top: 0.5rem; border: 1px solid #e2e8f0;">

@@ -130,14 +130,16 @@ The Super Administrator portal manages the SaaS business, tenant schools, and se
 
 ### Provisioning a New School Tenant
 1. Click **Schools Directory** in the navigation bar (`/superadmin/schools`).
-2. Click the **+ Onboard New School** button.
+2. Click the **+ Onboard School** button.
 3. Fill in the required details:
    - **School Full Name** (e.g., `Prestige International College`)
-   - **Unique URL Slug** (e.g., `prestige`)
-   - **School Motto & Institution Category** (Nursery, Primary, Secondary, or Combined)
-   - **Subscription Plan** (Standard, Premium, or Multi-Campus)
-   - **Principal/Administrator Contact Email & Phone**
-4. Click **Create School Tenant**. The platform provisions tenant records, assigns the subscription plan, and creates the default school administrator.
+   - **School Type** (Nursery, Primary, Secondary, or Combined)
+   - **School Official Email & Contact Phone**
+   - **Per-Student Term Portal Fee** (Configurable per-student fee payable each academic term; platform default is ₦3,000.00 / student or custom negotiated rate)
+   - **Guaranteed School Incentive (40%)** (Automatically accrued to the school on verified student portal collections)
+   - **Attributed Sales Partner / Representative (Optional)** (Link registered sales partner for 15% initial / 7.5% recurring commission)
+   - **Initial School Administrator Login Credentials** (Name and official admin email)
+4. Click **Provision Tenant School**. The platform provisions tenant records, assigns the primary domain, creates the school administrator account, and initializes the per-student term portal fee agreement.
 
 ### Mapping a Custom Apex Domain
 1. In the Schools Directory (`/superadmin/schools`), locate the school card.

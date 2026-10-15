@@ -1,7 +1,7 @@
 <div class="page-header">
     <div>
         <h1 class="page-title">School Tenants Directory</h1>
-        <p class="page-subtitle">Configure institutional boundaries, domain mapping, subscription tiering and account states</p>
+        <p class="page-subtitle">Configure institutional boundaries, domain mapping, per-student term portal fee agreements, and tenant account states</p>
     </div>
     <div style="display: flex; gap: 0.75rem; align-items: center;">
         <button type="button" class="btn btn-primary btn-sm" onclick="openModal('createSchoolModal')">
@@ -20,7 +20,7 @@
                     <th>School Name & Code</th>
                     <th>Type & State</th>
                     <th>Primary Domain</th>
-                    <th>Active Plan</th>
+                    <th>Term Portal Fee</th>
                     <th>Students</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -43,7 +43,8 @@
                             </code>
                         </td>
                         <td>
-                            <span class="badge badge-info"><?= e($s['plan_name'] ?? 'Custom') ?></span>
+                            <div style="font-weight: 700; color: #0f172a;"><?= money($s['active_portal_fee'] ?? 3000) ?></div>
+                            <div style="font-size: 0.7rem; color: #16a34a; font-weight: 600;">per student / term</div>
                         </td>
                         <td><strong><?= number_format((int)$s['student_count']) ?></strong></td>
                         <td>
@@ -113,13 +114,25 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Subscription Tier *</label>
-                    <select name="plan_id" class="form-select" required>
-                        <?php foreach ($plans as $p): ?>
-                            <option value="<?= $p['id'] ?>"><?= e($p['name']) ?> (<?= money($p['price']) ?> / <?= $p['billing_cycle'] ?>)</option>
-                        <?php endforeach; ?>
-                    </select>
+                <!-- Per-Student Commercial Model (Replaces Legacy Fixed Subscription Plans) -->
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.875rem; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 700; font-size: 0.8125rem; color: #166534; text-transform: uppercase; letter-spacing: 0.03em;">Commercial Model: Per-Student Term Portal Fee</span>
+                        <span class="badge badge-success" style="font-size: 0.7rem;">Term Billing Model</span>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.75rem; color: #14532d;">Term Portal Fee per Student (₦) *</label>
+                            <input type="number" step="100" min="500" name="portal_fee" class="form-control" value="3000" placeholder="3000" required style="background: #ffffff; font-weight: 600;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.75rem; color: #14532d;">School Incentive Share</label>
+                            <input type="text" class="form-control" value="40% (Accrued to School)" readonly style="background: #e2e8f0; color: #334155; font-weight: 600;">
+                        </div>
+                    </div>
+                    <small style="display: block; font-size: 0.7rem; color: #15803d; margin-top: 0.4rem;">
+                        Default is ₦3,000 / student per academic term. Each term is reconciled with 40% incentive to the school and 15% initial / 7.5% renewal commission to assigned sales partners.
+                    </small>
                 </div>
 
                 <div class="form-group">

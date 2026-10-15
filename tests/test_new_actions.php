@@ -104,6 +104,24 @@ assertAction($resDomain['code'] === 302, "Super Admin mapped custom domain -> re
 $domainInDb = Database::fetch("SELECT * FROM tenant_domains WHERE domain = ?", [$testDomain]);
 assertAction($domainInDb !== false && (int)$domainInDb['school_id'] === 1, "Custom domain '{$testDomain}' mapped to School ID 1");
 
+// 2b. Super Admin: Onboard New School Tenant with Per-Student Portal Fee Model
+echo "\n2b. Super Admin: Onboard School Tenant (Per-Student Portal Fee Model)...\n";
+$schRand = rand(1000, 9999);
+$resSchool = testHttp('/superadmin/schools/create', $superCookie, 'POST', [
+    'name' => "St. Jude Premier College {$schRand}",
+    'email' => "info@stjude{$schRand}.edu.ng",
+    'phone' => '08035556677',
+    'school_type' => 'combined',
+    'portal_fee' => 3500.00,
+    'admin_name' => 'Principal Jude',
+    'admin_email' => "principal@stjude{$schRand}.edu.ng",
+]);
+assertAction($resSchool['code'] === 302, "Super Admin onboarded school tenant -> redirected (HTTP 302)");
+$newSchool = Database::fetch("SELECT * FROM schools WHERE email = ?", ["info@stjude{$schRand}.edu.ng"]);
+assertAction($newSchool !== false && $newSchool['current_plan_id'] === null, "School onboarded without subscription tier (current_plan_id is NULL)");
+$feeAgreement = Database::fetch("SELECT * FROM school_portal_fee_agreements WHERE school_id = ? ORDER BY id DESC LIMIT 1", [$newSchool['id'] ?? 0]);
+assertAction($feeAgreement !== false && (float)$feeAgreement['proposed_fee_per_student'] === 3500.00, "Per-student fee agreement initialized with ₦3,500.00 rate");
+
 // Login as Apex School Admin
 $apexLogin = testHttp('/demo-login?email=admin@apexcollege.edu.ng');
 $apexCookie = $apexLogin['cookie'];
